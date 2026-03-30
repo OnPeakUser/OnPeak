@@ -6,23 +6,31 @@ import dynamic from "next/dynamic";
 const LeafletMap = dynamic(() => import("@/components/LeafletMap"), { ssr: false });
 
 function priceColor(price: number): string {
-  if (price < 0)   return "#033d8b";  // deep navy
-  if (price < 20)  return "#0969da";  // strong blue
-  if (price < 40)  return "#54aeff";  // sky blue
-  if (price < 60)  return "#d4a017";  // amber
-  if (price < 100) return "#e16f24";  // orange
-  if (price < 200) return "#cf222e";  // red
-  return "#82071e";                   // deep red
+  if (price <  -40) return "#1a237e";  // deep navy
+  if (price <  -20) return "#1565c0";  // dark blue
+  if (price <    0) return "#1976d2";  // medium blue
+  if (price <   10) return "#42a5f5";  // light blue
+  if (price <   20) return "#90caf9";  // pale blue
+  if (price <   30) return "#90b8d4";  // steel blue
+  if (price <   50) return "#e8cc48";  // warm yellow
+  if (price <   75) return "#ffd54f";  // gold
+  if (price <  125) return "#ef6c00";  // orange
+  if (price <  175) return "#d32f2f";  // red
+  return "#7f0000";                    // deep red
 }
 
 const LEGEND = [
-  { label: "< $0",     color: "#033d8b" },
-  { label: "$0–20",    color: "#0969da" },
-  { label: "$20–40",   color: "#54aeff" },
-  { label: "$40–60",   color: "#d4a017" },
-  { label: "$60–100",  color: "#e16f24" },
-  { label: "$100–200", color: "#cf222e" },
-  { label: "> $200",   color: "#82071e" },
+  { label: "< -$40",    color: "#1a237e" },
+  { label: "-$40–-20",  color: "#1565c0" },
+  { label: "-$20–0",    color: "#1976d2" },
+  { label: "$0–10",     color: "#42a5f5" },
+  { label: "$10–20",    color: "#90caf9" },
+  { label: "$20–30",    color: "#90b8d4" },
+  { label: "$30–50",    color: "#e8cc48" },
+  { label: "$50–75",    color: "#ffd54f" },
+  { label: "$75–125",   color: "#ef6c00" },
+  { label: "$125–175",  color: "#d32f2f" },
+  { label: "> $175",    color: "#7f0000" },
 ];
 
 export type Zone = {
@@ -330,8 +338,9 @@ export default function MapPage() {
           </p>
           <span className="text-xs" style={{
             position: "absolute", top: "50%", left: "50%",
-            transform: "translate(-50%, -50%)",
+            transform: "translate(-50%, 10%)",
             color: S.faint, whiteSpace: "nowrap", pointerEvents: "none",
+            fontWeight: 700,
           }}>
             Hover over nodes to see live prices. Click to Trade.
           </span>

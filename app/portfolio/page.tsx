@@ -120,7 +120,6 @@ export default function Portfolio() {
   return (
     <main className="min-h-screen p-8" style={{ background: S.bg, color: S.text }}>
 
-      <a href="/" className="text-sm mb-6 block" style={{ color: S.muted }}>← Back</a>
       <h1 className="text-2xl font-bold mb-1">My Portfolio</h1>
       <p className="text-sm mb-6" style={{ color: S.muted }}>Positions and open orders for {user.username}</p>
 

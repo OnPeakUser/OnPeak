@@ -178,8 +178,10 @@ async function settleMarket(node: string, displayDate: string, settlementValue: 
 
 // ── handler ───────────────────────────────────────────────────────────────────
 
-export async function POST(req: Request) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
+export async function POST(req: Request) { return handler(req); }
+export async function GET(req: Request) { return handler(req); }
+async function handler(req: Request) {
+  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {

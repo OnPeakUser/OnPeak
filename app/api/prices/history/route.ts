@@ -128,20 +128,32 @@ async function backfillCAISO(etDateStr: string): Promise<Row[]> {
 async function backfillISONE(yyyymmdd: string): Promise<Row[]> {
   const user = process.env.ISONE_USERNAME;
   const pass = process.env.ISONE_PASSWORD;
-  if (!user || !pass) return [];
+  if (!user || !pass) {
+    console.error("[history/ISONE] credentials missing — ISONE_USERNAME/ISONE_PASSWORD not set");
+    return [];
+  }
 
   const auth = Buffer.from(`${user}:${pass}`).toString("base64");
-  const resp = await fetch(
-    `https://webservices.iso-ne.com/api/v1.1/fiveminutelmp/prelim/day/${yyyymmdd}`,
-    { headers: { Accept: "application/json", Authorization: `Basic ${auth}` }, cache: "no-store" }
-  );
-  if (!resp.ok) return [];
+  let resp: Response;
+  try {
+    resp = await fetch(
+      `https://webservices.iso-ne.com/api/v1.1/fiveminutelmp/prelim/day/${yyyymmdd}`,
+      { headers: { Accept: "application/json", Authorization: `Basic ${auth}` }, cache: "no-store" }
+    );
+  } catch (err) {
+    console.error("[history/ISONE] network error:", err);
+    return [];
+  }
+  if (!resp.ok) {
+    console.error(`[history/ISONE] HTTP ${resp.status} ${resp.statusText} for date ${yyyymmdd}`);
+    return [];
+  }
 
   const data = await resp.json();
   const lmps: { BeginDate: string; Location: { $: string }; LmpTotal: number }[] =
     data?.FiveMinLmps?.FiveMinLmp ?? [];
 
-  return lmps
+  const results = lmps
     .filter(r => r.Location.$ === ".Z.NEMASSBOST")
     .map(r => ({
       id:        "ISONE_.Z.NEMASSBOST",
@@ -149,9 +161,19 @@ async function backfillISONE(yyyymmdd: string): Promise<Row[]> {
       price:     r.LmpTotal,
       timestamp: r.BeginDate,
     }));
+
+  console.log(`[history/ISONE] fetched ${results.length} rows for ${yyyymmdd}`);
+  return results;
 }
 
 // ── handler ───────────────────────────────────────────────────────────────────
+
+export const dynamic = "force-dynamic";
+
+// Round a timestamp down to its 5-minute UTC bucket for deduplication
+function utcBucket(ts: string): number {
+  return Math.floor(new Date(ts).getTime() / (5 * 60 * 1000));
+}
 
 export async function GET(req: NextRequest) {
   const date = req.nextUrl.searchParams.get("date");
@@ -179,21 +201,34 @@ export async function GET(req: NextRequest) {
     if (nyisoR.status === "rejected") console.error("[history] NYISO fetch failed:", nyisoR.reason);
     if (caisoR.status === "rejected") console.error("[history] CAISO fetch failed:", caisoR.reason);
     if (isoneR.status === "rejected") console.error("[history] ISONE fetch failed:", isoneR.reason);
+    if (nyisoR.status === "fulfilled" && nyisoR.value.length === 0) console.error("[history] NYISO returned 0 rows");
+    if (isoneR.status === "fulfilled" && isoneR.value.length === 0) console.error("[history] ISONE returned 0 rows");
 
     // Persist new API rows to DB
     if (apiRows.length > 0) saveSnapshots(apiRows).catch(() => {});
 
-    // DB fallback: covers any zone where the direct API fetch returned nothing
-    // (DB is populated every 5 min by /api/prices/all)
+    // Merge API rows + DB snapshot rows, preferring API data when timestamps overlap.
+    // API data is added first; DB rows for the same (node_id, 5-min bucket) are skipped.
+    // This means DB snapshots fill genuine gaps in the API response rather than being
+    // excluded wholesale whenever the API returns any data at all.
     const dbRows = dbR.status === "fulfilled" ? dbR.value : [];
-    const apiNodeIds = new Set(apiRows.map(r => r.id));
 
-    const rows = [
-      ...apiRows.map(r => ({ node_id: r.id, name: r.name, price: r.price, recorded_at: r.timestamp })),
-      ...dbRows
-        .filter(r => !apiNodeIds.has(r.node_id))
-        .map(r => ({ node_id: r.node_id, name: r.name, price: Number(r.price), recorded_at: String(r.recorded_at) })),
-    ];
+    type MergedRow = { node_id: string; name: string; price: number; recorded_at: string };
+    const seen = new Set<string>();
+    const rows: MergedRow[] = [];
+
+    for (const r of apiRows) {
+      const key = `${r.id}:${utcBucket(r.timestamp)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ node_id: r.id, name: r.name, price: r.price, recorded_at: r.timestamp });
+    }
+    for (const r of dbRows) {
+      const key = `${r.node_id}:${utcBucket(String(r.recorded_at))}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ node_id: r.node_id, name: r.name, price: Number(r.price), recorded_at: String(r.recorded_at) });
+    }
 
     return NextResponse.json({ rows });
   } catch (err) {

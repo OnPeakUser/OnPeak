@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import AdmZip from "adm-zip";
 
-// POST /api/cron/create-market-bayarea
+// GET /api/cron/create-market-bayarea
 // Called at ~4:30 PM ET each day.
 // CAISO DAM results publish at ~1 PM PT (4 PM ET), so this fires after they're live.
 // Creates the Bay Area market for tomorrow's operating day.
@@ -38,6 +38,12 @@ async function fetchBayAreaThreshold(yyyymmdd: string): Promise<number> {
   const entry = zip.getEntries().find((e) => e.entryName.endsWith(".csv"));
   if (!entry) throw new Error("No CSV in CAISO zip");
   const csv    = zip.readAsText(entry);
+  // When CAISO has no data for the requested date it still returns a ZIP,
+  // but the files inside contain XML error documents despite having .csv
+  // extensions.  Detect this and surface a clear error.
+  if (csv.trimStart().startsWith("<?xml")) {
+    throw new Error(`CAISO returned no data for ${yyyymmdd} (XML error response). Preview: ${csv.slice(0, 300)}`);
+  }
   const lines  = csv.trim().split("\n");
   const header = lines[0].split(",").map((h) => h.trim());
   const ltIdx  = header.indexOf("LMP_TYPE");
@@ -55,8 +61,10 @@ async function fetchBayAreaThreshold(yyyymmdd: string): Promise<number> {
   return prices.reduce((a, b) => a + b, 0) / prices.length;
 }
 
-export async function POST(req: Request) {
-  if (process.env.CRON_SECRET && req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
+export async function POST(req: Request) { return handler(req); }
+export async function GET(req: Request) { return handler(req); }
+async function handler(req: Request) {
+  if (process.env.CRON_SECRET && req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
@@ -75,14 +83,17 @@ export async function POST(req: Request) {
         month: "long", day: "numeric", year: "numeric",
       }).format(new Date(dateOverride + "T12:00:00Z"));
     } else {
-      const now      = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      yyyymmdd    = tomorrow.toISOString().slice(0, 10).replace(/-/g, "");
-      displayDate = tomorrow.toISOString().slice(0, 10);
+      // Compute "tomorrow in PT" — toISOString() uses UTC, so after 8 PM ET
+      // (midnight UTC) the UTC date has already rolled over and +1 would
+      // request a date whose CAISO DAM data isn't published yet.
+      const offset     = ptOffset();
+      const ptNow      = new Date(Date.now() + offset * 3_600_000);
+      const ptTomorrow = new Date(ptNow.getTime() + 86_400_000);
+      yyyymmdd    = ptTomorrow.toISOString().slice(0, 10).replace(/-/g, "");
+      displayDate = ptTomorrow.toISOString().slice(0, 10);
       humanDate   = new Intl.DateTimeFormat("en-US", {
         month: "long", day: "numeric", year: "numeric",
-      }).format(tomorrow);
+      }).format(new Date(displayDate + "T12:00:00Z"));
     }
 
     const existing = await pool.query(

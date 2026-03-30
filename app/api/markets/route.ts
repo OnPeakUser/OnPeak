@@ -10,7 +10,8 @@ export async function GET() {
     const marketsResult = await pool.query(
       `SELECT market_id, name, description, node, resolution_date, threshold, direction, status, settlement_value
        FROM markets
-       WHERE status IN ('open', 'settled')
+       WHERE status = 'open'
+          OR (status = 'settled' AND resolution_date = CURRENT_DATE - INTERVAL '1 day')
        ORDER BY created_at DESC`
     );
 

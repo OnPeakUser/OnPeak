@@ -271,32 +271,46 @@ async function fetchNYISO() {
 }
 
 // ISO-NE: fetch directly from their web services API (free, no GridStatus needed)
+// Retries once on failure — ISO-NE /current endpoint occasionally returns 503 or empty data.
 async function fetchISONE() {
   const user = process.env.ISONE_USERNAME!;
   const pass = process.env.ISONE_PASSWORD!;
   const auth = Buffer.from(`${user}:${pass}`).toString("base64");
 
-  const resp = await fetch(
-    "https://webservices.iso-ne.com/api/v1.1/fiveminutelmp/prelim/current",
-    { headers: { "Accept": "application/json", "Authorization": `Basic ${auth}` } }
-  );
-  if (!resp.ok) return [];
-
-  const data = await resp.json();
-  const lmps: { BeginDate: string; Location: { $: string; "@LocType": string }; LmpTotal: number }[] =
-    data?.FiveMinLmps?.FiveMinLmp ?? [];
-
-  return lmps
-    .filter((r) => ISONE_ZONES[r.Location.$])
-    .map((r) => ({
-      id:        `ISONE_${r.Location.$}`,
-      name:      ISONE_ZONES[r.Location.$].name,
-      iso:       "ISONE",
-      price:     r.LmpTotal,
-      lat:       ISONE_ZONES[r.Location.$].lat,
-      lon:       ISONE_ZONES[r.Location.$].lon,
-      timestamp: r.BeginDate,
-    }));
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt === 2) await sleep(2000); // brief pause before retry
+    let resp: Response;
+    try {
+      resp = await fetch(
+        "https://webservices.iso-ne.com/api/v1.1/fiveminutelmp/prelim/current",
+        { headers: { "Accept": "application/json", "Authorization": `Basic ${auth}` } }
+      );
+    } catch (err) {
+      console.error(`[ISO-NE] attempt ${attempt} network error:`, err);
+      continue;
+    }
+    if (!resp.ok) {
+      console.error(`[ISO-NE] attempt ${attempt} HTTP ${resp.status} ${resp.statusText}`);
+      continue;
+    }
+    const data = await resp.json();
+    const lmps: { BeginDate: string; Location: { $: string; "@LocType": string }; LmpTotal: number }[] =
+      data?.FiveMinLmps?.FiveMinLmp ?? [];
+    const results = lmps
+      .filter((r) => ISONE_ZONES[r.Location.$])
+      .map((r) => ({
+        id:        `ISONE_${r.Location.$}`,
+        name:      ISONE_ZONES[r.Location.$].name,
+        iso:       "ISONE",
+        price:     r.LmpTotal,
+        lat:       ISONE_ZONES[r.Location.$].lat,
+        lon:       ISONE_ZONES[r.Location.$].lon,
+        timestamp: r.BeginDate,
+      }));
+    if (results.length > 0) return results;
+    console.error(`[ISO-NE] attempt ${attempt} returned empty LMP array`);
+  }
+  return [];
 }
 
 async function fetchAllISOs(): Promise<CacheEntry> {
@@ -313,18 +327,25 @@ async function fetchAllISOs(): Promise<CacheEntry> {
     fetchCAISO_DAM(),
   ]);
 
-  // If CAISO OASIS API returned nothing, reuse the last cached CAISO zones so the
-  // node doesn't disappear from the map during brief OASIS outages.
+  // If any ISO API returned nothing, fall back to the last cached zones for that ISO
+  // so nodes don't disappear from the map or create snapshot gaps during brief outages.
+  const nycZones = rtNYC.length > 0
+    ? rtNYC.map((z) => ({ ...z, dam_price: damNYC }))
+    : (staleCache?.zones.filter((z) => z.id.startsWith("NYISO_")) ?? []);
+
+  const bostonZones = rtBoston.length > 0
+    ? rtBoston.map((z) => ({ ...z, dam_price: damBoston }))
+    : (staleCache?.zones.filter((z) => z.id.startsWith("ISONE_")) ?? []);
+
   const caisoZones = rtCAISO.length > 0
     ? rtCAISO.map((z) => ({ ...z, dam_price: damCAISO }))
     : (staleCache?.zones.filter((z) => z.id.startsWith("CAISO_")) ?? []);
 
-  // Attach dam_price to each RT result
-  const withDam = [
-    ...rtNYC.map((z) => ({ ...z, dam_price: damNYC })),
-    ...rtBoston.map((z) => ({ ...z, dam_price: damBoston })),
-    ...caisoZones,
-  ];
+  if (rtNYC.length === 0)    console.error("[NYISO] fetch returned no data — using stale cache");
+  if (rtBoston.length === 0) console.error("[ISO-NE] fetch returned no data after retries — using stale cache");
+  if (rtCAISO.length === 0)  console.error("[CAISO] fetch returned no data — using stale cache");
+
+  const withDam = [...nycZones, ...bostonZones, ...caisoZones];
 
   return {
     timestamp: withDam[0]?.timestamp ?? new Date().toISOString(),

@@ -45,13 +45,16 @@ function MarketPanel({
     a.resolution_date.localeCompare(b.resolution_date)
   );
 
-  const [tabIdx, setTabIdx] = useState(0);
-  const [qty, setQty]       = useState(1);
-  const [busy, setBusy]     = useState(false);
-  const [msg, setMsg]       = useState<{ ok: boolean; text: string } | null>(null);
+  const [tabIdx, setTabIdx]       = useState(0);
+  const [qty, setQty]             = useState(1);
+  const [side, setSide]           = useState<"yes" | "no" | null>(null);
+  const [hoverYes, setHoverYes]   = useState(false);
+  const [hoverNo, setHoverNo]     = useState(false);
+  const [busy, setBusy]           = useState(false);
+  const [msg, setMsg]             = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Reset tab when available markets change
-  useEffect(() => { setTabIdx(0); setMsg(null); }, [sorted.length]);
+  // Reset tab + side when available markets change
+  useEffect(() => { setTabIdx(0); setMsg(null); setSide(null); }, [sorted.length]);
 
   const market = sorted[tabIdx] ?? null;
 
@@ -85,8 +88,8 @@ function MarketPanel({
     }
   }
 
-  const yesCents = market?.best_yes_ask != null ? Math.round(market.best_yes_ask * 100) : null;
-  const noCents  = market?.best_no_ask  != null ? Math.round(market.best_no_ask  * 100) : null;
+  const yesCents = market != null ? 50 : null;
+  const noCents  = market != null ? 50 : null;
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", width: "256px" }}>
@@ -111,7 +114,7 @@ function MarketPanel({
               {sorted.map((m, i) => (
                 <button
                   key={m.market_id}
-                  onClick={() => { setTabIdx(i); setMsg(null); }}
+                  onClick={() => { setTabIdx(i); setMsg(null); setSide(null); }}
                   style={{
                     flex: 1, padding: "5px 0",
                     fontSize: "11px", fontWeight: tabIdx === i ? 700 : 400,
@@ -132,26 +135,15 @@ function MarketPanel({
             </div>
           )}
 
-          {/* RT + threshold price block */}
+          {/* Threshold price block */}
           {market && (
             <div style={{ background: "#f6f8fa", borderRadius: "6px", padding: "8px 10px", marginBottom: "12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "3px" }}>
-                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#656d76" }}>Live RT</span>
-                <span style={{ fontSize: "16px", fontWeight: 700, color: fill }}>
-                  ${zone.price.toFixed(2)}<span style={{ fontSize: "10px", color: "#8c959f" }}>/MWh</span>
-                </span>
-              </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#656d76" }}>DAM Threshold</span>
-                <span style={{ fontSize: "13px", color: "#656d76" }}>
+                <span style={{ fontSize: "15px", fontWeight: 600, color: "#656d76" }}>
                   ${market.threshold.toFixed(2)}<span style={{ fontSize: "10px", color: "#8c959f" }}>/MWh</span>
                 </span>
               </div>
-              {pct != null && (
-                <div style={{ textAlign: "right", marginTop: "3px", fontSize: "11px", fontWeight: 600, color: diff! > 0 ? "#cf222e" : "#1a7f37" }}>
-                  {diff! > 0 ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}% vs threshold
-                </div>
-              )}
             </div>
           )}
 
@@ -159,46 +151,75 @@ function MarketPanel({
           {market && (
             <div style={{ borderTop: "1px solid #d0d7de", paddingTop: "10px" }}>
 
-              {/* Current ask prices */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "7px" }}>
-                <span style={{ fontSize: "10px", color: "#8c959f" }}>
-                  YES ask: <strong style={{ color: "#1a7f37" }}>{yesCents != null ? `${yesCents}¢` : "—"}</strong>
-                </span>
-                <span style={{ fontSize: "10px", color: "#8c959f" }}>
-                  NO ask: <strong style={{ color: "#cf222e" }}>{noCents != null ? `${noCents}¢` : "—"}</strong>
-                </span>
+              {/* Question explainer */}
+              <div style={{ fontSize: "11px", color: "#656d76", marginBottom: "14px", lineHeight: "1.4" }}>
+                Will the average price in <strong>{zone.name}</strong> be Higher than <strong>${market.threshold.toFixed(2)}</strong>?
               </div>
 
-              {/* Quantity input */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                <label style={{ fontSize: "12px", color: "#656d76" }}>Contracts</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={qty}
-                  onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  style={{ width: "60px", padding: "4px 6px", border: "1px solid #d0d7de", borderRadius: "4px", fontSize: "12px", textAlign: "center" }}
-                />
-              </div>
-
-              {/* Buy buttons or sign-in prompt */}
               {userId ? (
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <button
-                    onClick={() => placeOrder("yes")}
-                    disabled={busy}
-                    style={{ flex: 1, padding: "8px 0", background: "#1a7f37", color: "#fff", border: "none", borderRadius: "5px", fontWeight: 700, fontSize: "12px", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}
-                  >
-                    YES{yesCents != null ? ` · ${yesCents}¢` : ""}
-                  </button>
-                  <button
-                    onClick={() => placeOrder("no")}
-                    disabled={busy}
-                    style={{ flex: 1, padding: "8px 0", background: "#cf222e", color: "#fff", border: "none", borderRadius: "5px", fontWeight: 700, fontSize: "12px", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}
-                  >
-                    NO{noCents != null ? ` · ${noCents}¢` : ""}
-                  </button>
-                </div>
+                <>
+                  {/* YES / NO selector */}
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+                    <button
+                      onClick={() => { setSide(side === "yes" ? null : "yes"); setMsg(null); }}
+                      onMouseEnter={() => setHoverYes(true)}
+                      onMouseLeave={() => setHoverYes(false)}
+                      style={{ flex: 1, padding: "10px 0", background: "#1a7f37", color: "#fff", border: `2px solid ${hoverYes ? "#0d4720" : side === "yes" ? "#0d4720" : "#1a7f37"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "yes" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
+                    >
+                      YES · 50¢
+                    </button>
+                    <button
+                      onClick={() => { setSide(side === "no" ? null : "no"); setMsg(null); }}
+                      onMouseEnter={() => setHoverNo(true)}
+                      onMouseLeave={() => setHoverNo(false)}
+                      style={{ flex: 1, padding: "10px 0", background: "#cf222e", color: "#fff", border: `2px solid ${hoverNo ? "#7a0a0f" : side === "no" ? "#7a0a0f" : "#cf222e"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "no" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
+                    >
+                      NO · 50¢
+                    </button>
+                  </div>
+
+                  {/* Contracts input */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <label style={{ fontSize: "12px", color: "#656d76" }}>Contracts</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={qty}
+                      onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      style={{ width: "60px", padding: "4px 6px", border: "1px solid #d0d7de", borderRadius: "4px", fontSize: "12px", textAlign: "center" }}
+                    />
+                  </div>
+
+                  {/* Payout summary + Execute — only when a side is selected */}
+                  {side && (
+                    <>
+                      <div style={{ background: "#f6f8fa", borderRadius: "5px", padding: "8px 10px", marginBottom: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76", marginBottom: "4px" }}>
+                          <span>Cost</span>
+                          <strong style={{ color: "#1f2328" }}>${(qty * 0.50).toFixed(2)}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76" }}>
+                          <span>Payout if correct</span>
+                          <strong style={{ color: side === "yes" ? "#1a7f37" : "#cf222e" }}>${(qty * 1.00).toFixed(2)}</strong>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => placeOrder(side)}
+                        disabled={busy}
+                        style={{ width: "100%", padding: "9px 0", background: side === "yes" ? "#1a7f37" : "#cf222e", color: "#fff", border: "none", borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}
+                      >
+                        {busy ? "Placing…" : `Execute Order · ${side.toUpperCase()}`}
+                      </button>
+                    </>
+                  )}
+
+                  {/* Order result message */}
+                  {msg && (
+                    <div style={{ marginTop: "7px", padding: "6px 8px", borderRadius: "4px", fontSize: "11px", textAlign: "center", background: msg.ok ? "#dafbe1" : "#ffebe9", color: msg.ok ? "#1a7f37" : "#cf222e" }}>
+                      {msg.text}
+                    </div>
+                  )}
+                </>
               ) : (
                 <a
                   href="/login"
@@ -206,13 +227,6 @@ function MarketPanel({
                 >
                   Sign in to trade
                 </a>
-              )}
-
-              {/* Order result message */}
-              {msg && (
-                <div style={{ marginTop: "7px", padding: "6px 8px", borderRadius: "4px", fontSize: "11px", textAlign: "center", background: msg.ok ? "#dafbe1" : "#ffebe9", color: msg.ok ? "#1a7f37" : "#cf222e" }}>
-                  {msg.text}
-                </div>
               )}
             </div>
           )}
@@ -242,6 +256,7 @@ export default function LeafletMap({ zones, priceColor, markets, userId }: Props
       style={{ height: "100%", width: "100%" }}
       scrollWheelZoom
       zoomControl
+      attributionControl={false}
     >
       {/* CartoDB Voyager — light terrain style with city/state labels, free, no API key */}
       <TileLayer
