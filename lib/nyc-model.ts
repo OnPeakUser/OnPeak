@@ -170,7 +170,9 @@ export function computeRunningInputs(
   const avg = (arr: number[]) =>
     arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
-  const rt_avg_so_far = avg(rtPricesSoFar);
+  // When no RT data exists yet, assume RT tracks DAM (neutral prior).
+  // Using 0 would make rt_vs_dam = -dam_daily_avg, badly biasing the model.
+  const rt_avg_so_far = rtPricesSoFar.length > 0 ? avg(rtPricesSoFar) : dam.dam_daily_avg;
 
   const implied_remaining_avg =
     intervals_remaining > 0
