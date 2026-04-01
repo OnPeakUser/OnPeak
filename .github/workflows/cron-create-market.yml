@@ -2,9 +2,9 @@ name: Create Market (NYC + Boston)
 
 on:
   schedule:
-    # 11:30 AM ET — 15:30 UTC works for EDT (UTC-4); in EST (UTC-5) this is 10:30 AM,
-    # which is still after NYISO and ISO-NE DAM prices publish (~11 AM ET).
-    - cron: "30 15 * * *"
+    # 1 PM ET — 17:00 UTC = 1 PM EDT / 12 PM EST, well after NYISO and ISO-NE DAM
+    # prices publish (~11 AM ET) and aligned with the post-1 PM RT signal window.
+    - cron: "0 17 * * *"
   workflow_dispatch:
 
 jobs:
