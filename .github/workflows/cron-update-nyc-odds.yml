@@ -1,0 +1,27 @@
+name: Update NYC Odds
+
+on:
+  schedule:
+    # Every 5 minutes (GitHub Actions minimum interval).
+    # Note: GitHub does not guarantee exact timing — runs may be delayed by a few minutes.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  update-nyc-odds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/cron/update-nyc-odds
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.APP_URL }}/api/cron/update-nyc-odds" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "HTTP $status"
+          echo "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Cron failed with HTTP $status"
+            exit 1
+          fi

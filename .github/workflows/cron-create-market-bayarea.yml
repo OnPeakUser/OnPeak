@@ -1,0 +1,27 @@
+name: Create Market (Bay Area / CAISO)
+
+on:
+  schedule:
+    # CAISO DAM publishes at ~1 PM PT. 21:30 UTC = 5:30 PM EDT / 4:30 PM EST,
+    # safely after CAISO data is live in all seasons.
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+
+jobs:
+  create-market-bayarea:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/cron/create-market-bayarea
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.APP_URL }}/api/cron/create-market-bayarea" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "HTTP $status"
+          echo "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Cron failed with HTTP $status"
+            exit 1
+          fi
