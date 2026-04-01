@@ -185,11 +185,23 @@ async function handler(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const now       = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yyyymmdd    = yesterday.toISOString().slice(0, 10).replace(/-/g, "");
-    const displayDate = yesterday.toISOString().slice(0, 10);
+    // Optional ?date=YYYY-MM-DD override for manual backfill
+    const url          = new URL(req.url);
+    const dateOverride = url.searchParams.get("date");
+
+    let yyyymmdd: string;
+    let displayDate: string;
+
+    if (dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride)) {
+      displayDate = dateOverride;
+      yyyymmdd    = dateOverride.replace(/-/g, "");
+    } else {
+      const now       = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      yyyymmdd    = yesterday.toISOString().slice(0, 10).replace(/-/g, "");
+      displayDate = yesterday.toISOString().slice(0, 10);
+    }
 
     const [nycR, bostonR, bayAreaR] = await Promise.allSettled([
       fetchNYCPrices(yyyymmdd).then(p => settleMarket("N.Y.C.",           displayDate, simpleAvg(p))),
