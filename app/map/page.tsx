@@ -51,6 +51,7 @@ export type Market = {
   threshold: number;
   direction: string;
   status: string;
+  model_prob: number | null;
   best_yes_ask: number | null;
   best_no_ask: number | null;
 };

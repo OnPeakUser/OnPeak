@@ -88,8 +88,8 @@ function MarketPanel({
     }
   }
 
-  const yesCents = market != null ? 50 : null;
-  const noCents  = market != null ? 50 : null;
+  const yesCents = market != null ? (market.model_prob != null ? Math.round(market.model_prob * 100) : 50) : null;
+  const noCents  = market != null ? (market.model_prob != null ? 100 - Math.round(market.model_prob * 100) : 50) : null;
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", width: "256px" }}>
@@ -166,7 +166,7 @@ function MarketPanel({
                       onMouseLeave={() => setHoverYes(false)}
                       style={{ flex: 1, padding: "10px 0", background: "#1a7f37", color: "#fff", border: `2px solid ${hoverYes ? "#0d4720" : side === "yes" ? "#0d4720" : "#1a7f37"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "yes" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
                     >
-                      YES · 50¢
+                      YES · {yesCents}¢
                     </button>
                     <button
                       onClick={() => { setSide(side === "no" ? null : "no"); setMsg(null); }}
@@ -174,7 +174,7 @@ function MarketPanel({
                       onMouseLeave={() => setHoverNo(false)}
                       style={{ flex: 1, padding: "10px 0", background: "#cf222e", color: "#fff", border: `2px solid ${hoverNo ? "#7a0a0f" : side === "no" ? "#7a0a0f" : "#cf222e"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "no" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
                     >
-                      NO · 50¢
+                      NO · {noCents}¢
                     </button>
                   </div>
 
