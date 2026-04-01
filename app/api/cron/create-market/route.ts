@@ -107,10 +107,20 @@ async function upsertMarket(
   modelProb?: number,
 ) {
   const existing = await pool.query(
-    `SELECT market_id FROM markets WHERE resolution_date = $1 AND node = $2`,
+    `SELECT market_id, model_prob FROM markets WHERE resolution_date = $1 AND node = $2`,
     [displayDate, node]
   );
-  if (existing.rows.length > 0) return { skipped: true, threshold };
+  if (existing.rows.length > 0) {
+    // Backfill model_prob if it was never set (e.g. market created before model existed)
+    if (existing.rows[0].model_prob == null && modelProb != null) {
+      await pool.query(
+        `UPDATE markets SET model_prob = $1, dam_features = $2 WHERE resolution_date = $3 AND node = $4`,
+        [modelProb, damFeatures ? JSON.stringify(damFeatures) : null, displayDate, node]
+      );
+      return { skipped: false, backfilled: true, threshold, model_prob: modelProb };
+    }
+    return { skipped: true, threshold };
+  }
 
   await pool.query(
     `INSERT INTO markets
