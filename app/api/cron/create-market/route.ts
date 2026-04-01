@@ -138,19 +138,38 @@ async function handler(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const now      = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const yyyymmdd    = tomorrow.toISOString().slice(0, 10).replace(/-/g, "");
-    const displayDate = tomorrow.toISOString().slice(0, 10);
-    const humanDate   = new Intl.DateTimeFormat("en-US", {
-      month: "long", day: "numeric", year: "numeric",
-    }).format(tomorrow);
+    // Optional ?date=YYYY-MM-DD override for manual backfill
+    const url          = new URL(req.url);
+    const dateOverride = url.searchParams.get("date");
 
-    // Yesterday's date string for prior RT lookup
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayDate = yesterday.toISOString().slice(0, 10);
+    let displayDate: string;
+    let yyyymmdd: string;
+    let humanDate: string;
+    let yesterdayDate: string;
+
+    if (dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride)) {
+      displayDate   = dateOverride;
+      yyyymmdd      = dateOverride.replace(/-/g, "");
+      humanDate     = new Intl.DateTimeFormat("en-US", {
+        month: "long", day: "numeric", year: "numeric",
+      }).format(new Date(dateOverride + "T12:00:00Z"));
+      // Prior RT = day before the target date
+      const prior   = new Date(dateOverride + "T12:00:00Z");
+      prior.setUTCDate(prior.getUTCDate() - 1);
+      yesterdayDate = prior.toISOString().slice(0, 10);
+    } else {
+      const now      = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      yyyymmdd      = tomorrow.toISOString().slice(0, 10).replace(/-/g, "");
+      displayDate   = tomorrow.toISOString().slice(0, 10);
+      humanDate     = new Intl.DateTimeFormat("en-US", {
+        month: "long", day: "numeric", year: "numeric",
+      }).format(tomorrow);
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterdayDate = yesterday.toISOString().slice(0, 10);
+    }
 
     const [nycR, bostonR] = await Promise.allSettled([
       // NYC: fetch full DAM + prior RT → compute model features + initial odds
