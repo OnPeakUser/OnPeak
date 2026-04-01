@@ -7,6 +7,20 @@ import {
   type DamFeatures,
 } from "./nyc-model";
 
+let historyTableReady = false;
+async function ensureHistoryTable() {
+  if (historyTableReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market_prob_history (
+      market_id   UUID          NOT NULL,
+      prob        NUMERIC(6,4)  NOT NULL,
+      recorded_at TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (market_id, recorded_at)
+    )
+  `);
+  historyTableReady = true;
+}
+
 // Reusable core logic for updating model_prob on open NYC markets.
 // Runs two passes every 5 minutes (piggybacked on /api/prices/all):
 //
@@ -15,6 +29,8 @@ import {
 //    as the prior_rt features. These keep updating until midnight when the
 //    operating day flips and pass #1 takes over.
 export async function updateNYCOdds(): Promise<{ updated: number; markets: object[] }> {
+  await ensureHistoryTable();
+
   const todayET = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
   }).format(new Date());
@@ -92,6 +108,14 @@ export async function updateNYCOdds(): Promise<{ updated: number; markets: objec
           [modelProb, JSON.stringify(updatedDam), row.market_id]
         );
       }
+
+      // Record history snapshot
+      await pool.query(
+        `INSERT INTO market_prob_history (market_id, prob, recorded_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT DO NOTHING`,
+        [row.market_id, modelProb]
+      );
 
       results.push({
         market_id: row.market_id,

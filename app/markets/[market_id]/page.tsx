@@ -196,6 +196,86 @@ function PriceChart({ points, threshold }: { points: PricePoint[]; threshold: nu
   );
 }
 
+// ── YES price history chart ────────────────────────────────────────────────────
+
+function ProbChart({ history }: { history: { prob: number; recorded_at: string }[] }) {
+  if (history.length < 2) return (
+    <p style={{ fontSize: "12px", color: S.faint, textAlign: "center", padding: "16px 0" }}>
+      Price history will appear here as the market updates.
+    </p>
+  );
+
+  const PW = 580, PH = 130;
+  const PP = { top: 10, right: 12, bottom: 22, left: 36 };
+  const PCW = PW - PP.left - PP.right;
+  const PCH = PH - PP.top - PP.bottom;
+
+  const t0 = new Date(history[0].recorded_at).getTime();
+  const t1 = new Date(history[history.length - 1].recorded_at).getTime();
+  const tRange = t1 - t0 || 1;
+
+  function toX(ts: string) {
+    return ((new Date(ts).getTime() - t0) / tRange) * PCW;
+  }
+  function toY(prob: number) {
+    return PCH - prob * PCH;
+  }
+
+  const fiftyY = toY(0.5);
+  const polyline = history.map(p => `${toX(p.recorded_at)},${toY(p.prob)}`).join(" ");
+
+  // X-axis: show ~4 evenly spaced time labels
+  const labelCount = 4;
+  const labelTimes = Array.from({ length: labelCount + 1 }, (_, i) => {
+    const ts = new Date(t0 + (tRange * i) / labelCount);
+    return {
+      x: (i / labelCount) * PCW,
+      label: ts.toLocaleTimeString("en-US", {
+        timeZone: "America/New_York",
+        month: "short", day: "numeric",
+        hour: "numeric", minute: "2-digit",
+        hour12: true,
+      }).replace(":00", ""),
+    };
+  });
+
+  return (
+    <svg width={PW} height={PH} style={{ display: "block", overflow: "visible" }}>
+      <g transform={`translate(${PP.left},${PP.top})`}>
+        {/* Y gridlines at 25, 50, 75 */}
+        {[0.25, 0.5, 0.75].map(v => {
+          const y = toY(v);
+          return (
+            <g key={v}>
+              <line x1={0} y1={y} x2={PCW} y2={y} stroke={S.border} strokeWidth={v === 0.5 ? 1 : 0.5} strokeDasharray={v === 0.5 ? "none" : "3 3"} />
+              <text x={-4} y={y + 3.5} textAnchor="end" fontSize={9} fill={S.faint}>{Math.round(v * 100)}¢</text>
+            </g>
+          );
+        })}
+
+        {/* 50¢ reference label */}
+        <text x={PCW + 4} y={fiftyY + 3.5} fontSize={9} fill={S.faint}>50¢</text>
+
+        {/* YES price line */}
+        <polyline points={polyline} fill="none" stroke={S.blue} strokeWidth={1.5} strokeLinejoin="round" />
+
+        {/* Latest dot */}
+        <circle
+          cx={toX(history[history.length - 1].recorded_at)}
+          cy={toY(history[history.length - 1].prob)}
+          r={3} fill={S.blue}
+        />
+
+        {/* X axis */}
+        <line x1={0} y1={PCH} x2={PCW} y2={PCH} stroke={S.border} strokeWidth={0.5} />
+        {labelTimes.map((l, i) => (
+          <text key={i} x={l.x} y={PCH + 14} textAnchor="middle" fontSize={8} fill={S.faint}>{l.label}</text>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function MarketPage() {
@@ -214,6 +294,7 @@ export default function MarketPage() {
 
   const [points, setPoints]         = useState<PricePoint[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [probHistory, setProbHistory] = useState<{ prob: number; recorded_at: string }[]>([]);
 
   const today = etDateStr();
 
@@ -246,6 +327,10 @@ export default function MarketPage() {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
     loadMarket().finally(() => setLoading(false));
+    fetch(`/api/markets/${market_id}/prob-history`)
+      .then(r => r.json())
+      .then(data => setProbHistory(data.rows ?? []))
+      .catch(() => {});
   }, [market_id]);
 
   useEffect(() => {
@@ -347,39 +432,28 @@ export default function MarketPage() {
         )}
       </div>
 
-      {/* Model probability — NYC markets only */}
-      {market.model_prob != null && !isSettled && (() => {
-        const prob    = market.model_prob;
+      {/* Price — NYC markets only */}
+      {market.model_prob != null && (() => {
+        const prob     = market.model_prob;
         const yesCents = Math.round(prob * 100);
         const noCents  = 100 - yesCents;
-        const barColor = prob >= 0.5 ? S.green : S.red;
         return (
           <div className="rounded p-4 mb-5" style={{ background: S.surface, border: `1px solid ${S.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "10px" }}>
-              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: S.faint }}>
-                Model Probability
-              </p>
+              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: S.faint }}>Price</p>
               <p style={{ fontSize: "11px", color: S.faint }}>updated every 5 min</p>
             </div>
-            <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "10px" }}>
+            <div style={{ display: "flex", gap: "24px", marginBottom: "14px" }}>
               <div style={{ textAlign: "center" }}>
                 <p style={{ fontSize: "11px", color: S.green, fontWeight: 600, marginBottom: "2px" }}>YES</p>
                 <p style={{ fontSize: "22px", fontWeight: 700, color: S.green }}>{yesCents}¢</p>
-              </div>
-              <div style={{ flex: 1 }}>
-                {/* Progress bar */}
-                <div style={{ height: "10px", borderRadius: "5px", background: S.elevated, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${yesCents}%`, background: barColor, borderRadius: "5px", transition: "width 0.4s ease" }} />
-                </div>
               </div>
               <div style={{ textAlign: "center" }}>
                 <p style={{ fontSize: "11px", color: S.red, fontWeight: 600, marginBottom: "2px" }}>NO</p>
                 <p style={{ fontSize: "22px", fontWeight: 700, color: S.red }}>{noCents}¢</p>
               </div>
             </div>
-            <p style={{ fontSize: "11px", color: S.faint }}>
-              Model estimates {yesCents}% chance NYC avg RT exceeds DAM on this day.
-            </p>
+            <ProbChart history={probHistory} />
           </div>
         );
       })()}
