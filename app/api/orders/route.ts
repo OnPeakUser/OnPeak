@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/orders — place a new order
@@ -27,12 +28,16 @@ import pool from "@/lib/db";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { user_id, market_id, side, contract_type, order_type, price, quantity } =
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const user_id = session.user_id;
+
+  const { market_id, side, contract_type, order_type, price, quantity } =
     await req.json();
 
   // ── Input validation ──────────────────────────────────────────────────────
 
-  if (!user_id || !market_id || !side || !contract_type || !order_type || !quantity) {
+  if (!market_id || !side || !contract_type || !order_type || !quantity) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
   if (!["buy", "sell"].includes(side)) {

@@ -42,3 +42,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# data / model training artifacts
+*.csv
+*.log
+*.png
+*.py
+__pycache__/
+charts/

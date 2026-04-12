@@ -10,7 +10,7 @@ export async function GET(req: Request)  { return handler(req); }
 
 async function handler(req: Request) {
   if (
-    process.env.CRON_SECRET &&
+    !process.env.CRON_SECRET ||
     req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

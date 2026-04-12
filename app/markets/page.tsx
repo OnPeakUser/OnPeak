@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 
 type Market = {
   market_id: string;
@@ -359,15 +359,15 @@ export default function MarketsPage() {
     return nodeId != null ? (livePrice[nodeId] ?? null) : null;
   }
 
-  function renderSection(title: string, list: Market[], isToday: boolean, emptyText?: string, pinNodes?: string[]) {
-    if (list.length === 0 && !emptyText) return null;
+  function renderSection(title: string, list: Market[], isToday: boolean, emptyNode?: React.ReactNode, pinNodes?: string[]) {
+    if (list.length === 0 && !emptyNode) return null;
     return (
       <section style={{ marginBottom: "40px" }}>
         <h2 style={{ fontSize: "15px", fontWeight: 700, color: S.text, marginBottom: "14px", borderBottom: `1px solid ${S.border}`, paddingBottom: "8px" }}>
           {title}
         </h2>
         {list.length === 0 ? (
-          <p style={{ fontSize: "13px", color: S.faint }}>{emptyText}</p>
+          <div>{emptyNode}</div>
         ) : pinNodes ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
             {pinNodes.map(node => {
@@ -426,7 +426,12 @@ export default function MarketsPage() {
           {!hasLocked && renderSection("Today's Markets", todayOpenMarkets, true, undefined, NODE_ORDER)}
 
           {/* Tomorrow's markets — shows today's date if locked markets still exist */}
-          {renderSection("Tomorrow's Markets", tomorrowOpenMarkets, false, "No markets yet.", NODE_ORDER)}
+          {renderSection("Tomorrow's Markets", tomorrowOpenMarkets, false, (
+            <div style={{ fontSize: "13px", color: S.faint, lineHeight: "1.7" }}>
+              <p><span style={{ color: S.muted, fontWeight: 500 }}>NYC &amp; Boston</span> — release ~11:30 AM ET</p>
+              <p><span style={{ color: S.muted, fontWeight: 500 }}>NorCal</span> — release ~4:30 PM ET</p>
+            </div>
+          ), NODE_ORDER)}
 
           <section style={{ marginBottom: "40px" }}>
             <h2 style={{ fontSize: "15px", fontWeight: 700, color: S.text, marginBottom: "14px", borderBottom: `1px solid ${S.border}`, paddingBottom: "8px" }}>

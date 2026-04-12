@@ -94,7 +94,7 @@ async function fetchNP15PriorRtAfternoon(yesterdayPT: string): Promise<number[]>
 export async function POST(req: Request) { return handler(req); }
 export async function GET(req: Request) { return handler(req); }
 async function handler(req: Request) {
-  if (process.env.CRON_SECRET && req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {

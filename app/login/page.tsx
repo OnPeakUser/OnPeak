@@ -4,15 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const S = {
-  bg: "#000000",
-  surface: "#0f0f0f",
-  elevated: "#1a1a1a",
-  border: "#222222",
-  text: "#ffffff",
-  muted: "#888888",
-  faint: "#555555",
-  orange: "#ff6600",
-  red: "#ff3d3d",
+  bg: "#f6f8fa",
+  surface: "#ffffff",
+  elevated: "#f0f3f6",
+  border: "#d0d7de",
+  text: "#1f2328",
+  muted: "#656d76",
+  faint: "#8c959f",
+  blue: "#0969da",
+  red: "#cf222e",
 };
 
 export default function Login() {
@@ -56,11 +56,11 @@ export default function Login() {
             <input style={inputStyle} placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           {error && <p className="text-sm mb-4" style={{ color: S.red }}>{error}</p>}
-          <button type="submit" disabled={loading} className="w-full py-2 rounded font-bold text-sm mb-4 disabled:opacity-50 transition-colors" style={{ background: S.orange, color: "#000000" }}>
+          <button type="submit" disabled={loading} className="w-full py-2 rounded font-bold text-sm mb-4 disabled:opacity-50 transition-colors" style={{ background: S.blue, color: "#ffffff" }}>
             {loading ? "Signing in..." : "Sign in"}
           </button>
           <p className="text-center text-sm" style={{ color: S.faint }}>
-            No account?{" "}<a href="/register" style={{ color: S.orange }}>Register</a>
+            No account?{" "}<a href="/register" style={{ color: S.blue }}>Register</a>
           </p>
         </form>
       </div>

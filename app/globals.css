@@ -27,3 +27,19 @@ body {
 .leaflet-container {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+
+.btn-sell {
+  background: #ffffff;
+  color: #1f2328;
+  border: 1.5px solid #1f2328;
+  font-size: 20px;
+  font-weight: 600;
+  padding: 11px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+.btn-sell:hover {
+  background: #f0f3f6;
+}

@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 // GET /api/portfolio?user_id=...
 // Returns the user's fresh cash balance, current positions, and open orders.
 
 export async function GET(req: NextRequest) {
-  const user_id = req.nextUrl.searchParams.get("user_id");
-
-  if (!user_id) {
-    return NextResponse.json({ error: "user_id is required." }, { status: 400 });
-  }
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const user_id = session.user_id;
 
   try {
+    // One-time migrations
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS cost        NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS last_price  NUMERIC`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_qty    INT     DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_cost   NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_payout NUMERIC DEFAULT 0`).catch(() => {});
+
     // Fresh cash balance (localStorage goes stale after trades)
     const profileResult = await pool.query(
       "SELECT cash_balance FROM profile WHERE user_id = $1",
@@ -24,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     // Open positions (markets not yet settled)
     const positionsResult = await pool.query(
-      `SELECT p.yes_qty, p.no_qty, m.market_id, m.name, m.threshold, m.direction, m.status
+      `SELECT p.yes_qty, p.no_qty, p.cost, p.last_price, m.market_id, m.name, m.threshold, m.direction, m.status, m.model_prob
        FROM positions p
        JOIN markets m ON m.market_id = p.market_id
        WHERE p.user_id = $1
@@ -36,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     // Settled positions (historical)
     const settledResult = await pool.query(
-      `SELECT p.yes_qty, p.no_qty, m.market_id, m.name, m.threshold, m.direction,
+      `SELECT p.yes_qty, p.no_qty, p.cost, m.market_id, m.name, m.threshold, m.direction,
               m.resolution_date, m.settlement_value
        FROM positions p
        JOIN markets m ON m.market_id = p.market_id
@@ -47,34 +53,41 @@ export async function GET(req: NextRequest) {
       [user_id]
     );
 
-    // Open orders (pending or resting) joined with market names
-    const ordersResult = await pool.query(
-      `SELECT o.order_id, o.side, o.contract_type, o.order_type,
-              o.price, o.quantity, o.status, o.created_at,
-              m.name AS market_name, m.market_id
-       FROM orders o
-       JOIN markets m ON m.market_id = o.market_id
-       WHERE o.user_id = $1
-         AND o.status IN ('pending', 'resting')
-       ORDER BY o.created_at DESC`,
+    const settledPositions = settledResult.rows.map((r) => {
+      const yes_wins = Number(r.settlement_value) > Number(r.threshold);
+      const payout   = yes_wins ? Number(r.yes_qty) : Number(r.no_qty);
+      const cost     = Number(r.cost ?? 0);
+      return {
+        ...r,
+        threshold:        Number(r.threshold),
+        settlement_value: Number(r.settlement_value),
+        yes_wins,
+        payout,
+        cost,
+      };
+    });
+
+    // Early-sold positions: rows where the user sold before settlement
+    const soldResult = await pool.query(
+      `SELECT p.sold_qty, p.sold_cost, p.sold_payout, m.market_id, m.name, m.threshold, m.direction
+       FROM positions p
+       JOIN markets m ON m.market_id = p.market_id
+       WHERE p.user_id = $1
+         AND COALESCE(p.sold_payout, 0) > 0
+         AND m.status = 'open'
+       ORDER BY m.resolution_date DESC`,
       [user_id]
     );
 
-    // Convert stored YES price back to user-facing price for display
-    const openOrders = ordersResult.rows.map((o) => ({
-      ...o,
-      display_price: o.price === null ? null :
-        o.contract_type === "no" ? (1 - Number(o.price)).toFixed(2) : Number(o.price).toFixed(2),
-    }));
-
-    const settledPositions = settledResult.rows.map((r) => ({
+    const soldPositions = soldResult.rows.map((r) => ({
       ...r,
-      threshold:        Number(r.threshold),
-      settlement_value: Number(r.settlement_value),
-      yes_wins:         Number(r.settlement_value) > Number(r.threshold),
+      threshold:    Number(r.threshold),
+      sold_qty:     Number(r.sold_qty ?? 0),
+      total_cost:   Number(r.sold_cost ?? 0),
+      total_payout: Number(r.sold_payout ?? 0),
     }));
 
-    return NextResponse.json({ cash_balance, positions: positionsResult.rows, open_orders: openOrders, settled_positions: settledPositions });
+    return NextResponse.json({ cash_balance, positions: positionsResult.rows, settled_positions: settledPositions, sold_positions: soldPositions });
   } catch (err) {
     console.error("GET /api/portfolio error:", err);
     return NextResponse.json({ error: "Server error." }, { status: 500 });

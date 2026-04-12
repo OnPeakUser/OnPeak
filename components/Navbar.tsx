@@ -22,7 +22,8 @@ export default function Navbar() {
     if (stored) setUsername(JSON.parse(stored).username);
   }, []);
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    await fetch("/api/logout", { method: "POST" });
     localStorage.removeItem("user");
     setUsername(null);
     router.push("/");

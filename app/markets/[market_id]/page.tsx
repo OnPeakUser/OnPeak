@@ -327,7 +327,8 @@ export default function MarketPage() {
   const [market, setMarket]   = useState<Market | null>(null);
   const [loading, setLoading] = useState(true);
   const [side, setSide]         = useState<"yes" | "no" | null>(null);
-  const [qty, setQty]           = useState(1);
+  const [qtyStr, setQtyStr]     = useState("1");
+  const qty = Math.max(1, parseInt(qtyStr) || 1);
   const [hoverYes, setHoverYes]   = useState(false);
   const [hoverNo, setHoverNo]     = useState(false);
   const [hoverExec, setHoverExec] = useState(false);
@@ -404,7 +405,7 @@ export default function MarketPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        user_id: user.user_id, market_id: market.market_id,
+        market_id: market.market_id,
         contract_type: side, quantity: qty,
       }),
     });
@@ -416,7 +417,7 @@ export default function MarketPage() {
       setUser(newUser);
       localStorage.setItem("user", JSON.stringify(newUser));
       setSuccess(`Filled! ${qty} ${side.toUpperCase()} contract${qty > 1 ? "s" : ""} at ${Math.round((data.price ?? 0.5) * 100)}¢ each.`);
-      setSide(null); setQty(1); loadMarket();
+      setSide(null); setQtyStr("1"); loadMarket();
     }
     setSubmitting(false);
   }
@@ -489,12 +490,6 @@ export default function MarketPage() {
               <p style={{ fontSize: "11px", color: S.faint, marginBottom: "2px" }}>Today&apos;s Avg</p>
               <p style={{ fontSize: "16px", fontWeight: 700, color: avg != null ? priceColor(avg) : S.text }}>{avg != null ? `$${avg.toFixed(2)}/MWh` : "—"}</p>
             </div>
-            <div>
-              <p style={{ fontSize: "11px", color: S.faint, marginBottom: "2px" }}>Current RT</p>
-              <p style={{ fontSize: "16px", fontWeight: 700, color: currentPrice != null ? priceColor(currentPrice) : S.text }}>
-                {currentPrice != null ? `$${currentPrice.toFixed(2)}/MWh` : "—"}
-              </p>
-            </div>
           </div>
         )}
         <PriceChart points={isToday ? points : []} threshold={market.threshold} />
@@ -550,8 +545,9 @@ export default function MarketPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
             <label style={{ fontSize: "14px", color: S.muted }}>Contracts</label>
             <input
-              type="number" min={1} value={qty}
-              onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+              type="number" min={1} value={qtyStr}
+              onChange={e => setQtyStr(e.target.value)}
+              onBlur={() => setQtyStr(String(Math.max(1, parseInt(qtyStr) || 1)))}
               style={{ width: "110px", padding: "7px 10px", border: `1px solid ${S.border}`, borderRadius: "4px", fontSize: "14px", textAlign: "center", background: S.surface, color: S.text }}
             />
           </div>
@@ -600,34 +596,6 @@ export default function MarketPage() {
         </div>
       )}
 
-      {/* Order book */}
-      <div className="rounded p-5" style={cardStyle}>
-        <h2 className="text-xs font-bold uppercase tracking-wide mb-4" style={{ color: S.faint }}>Order Book</h2>
-        {market.orderbook.length === 0 ? (
-          <p className="text-sm" style={{ color: S.faint }}>No resting orders.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ color: S.faint, borderBottom: `1px solid ${S.border}` }}>
-                <th className="text-left pb-2 text-xs font-medium">Action</th>
-                <th className="text-left pb-2 text-xs font-medium">Contract</th>
-                <th className="text-left pb-2 text-xs font-medium">Price</th>
-                <th className="text-left pb-2 text-xs font-medium">Size</th>
-              </tr>
-            </thead>
-            <tbody>
-              {market.orderbook.map((o, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${S.elevated}` }}>
-                  <td className="py-2 font-bold" style={{ color: o.side === "buy" ? S.green : S.red }}>{o.side.toUpperCase()}</td>
-                  <td className="py-2" style={{ color: S.text }}>{o.contract_type.toUpperCase()}</td>
-                  <td className="py-2" style={{ color: S.blue }}>${o.display_price}</td>
-                  <td className="py-2" style={{ color: S.muted }}>{o.quantity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 // POST /api/bet
 // Instant fill at model_prob price — no matching engine.
@@ -8,9 +9,13 @@ import pool from "@/lib/db";
 // To revert to order-book trading: delete this file and swap the UI back to /api/orders.
 
 export async function POST(req: NextRequest) {
-  const { user_id, market_id, contract_type, quantity } = await req.json();
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const user_id = session.user_id;
 
-  if (!user_id || !market_id || !contract_type || !quantity) {
+  const { market_id, contract_type, quantity } = await req.json();
+
+  if (!market_id || !contract_type || !quantity) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
   if (!["yes", "no"].includes(contract_type)) {
@@ -22,6 +27,8 @@ export async function POST(req: NextRequest) {
 
   const client = await pool.connect();
   try {
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS cost NUMERIC DEFAULT 0");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS last_price NUMERIC");
     await client.query("BEGIN");
 
     const userRes = await client.query(
@@ -66,14 +73,18 @@ export async function POST(req: NextRequest) {
 
     const col = contract_type === "yes" ? "yes_qty" : "no_qty";
     await client.query(
-      `INSERT INTO positions (user_id, market_id, yes_qty, no_qty)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO positions (user_id, market_id, yes_qty, no_qty, cost, last_price)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (user_id, market_id) DO UPDATE
-       SET ${col} = positions.${col} + EXCLUDED.${col}`,
+       SET ${col}     = positions.${col} + EXCLUDED.${col},
+           cost       = positions.cost   + EXCLUDED.cost,
+           last_price = EXCLUDED.last_price`,
       [
         user_id, market_id,
         contract_type === "yes" ? quantity : 0,
         contract_type === "no"  ? quantity : 0,
+        cost,
+        price,
       ]
     );
 

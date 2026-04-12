@@ -46,7 +46,8 @@ function MarketPanel({
   );
 
   const [tabIdx, setTabIdx]       = useState(0);
-  const [qty, setQty]             = useState(1);
+  const [qtyStr, setQtyStr]       = useState("1");
+  const qty = Math.max(1, parseInt(qtyStr) || 1);
   const [side, setSide]           = useState<"yes" | "no" | null>(null);
   const [hoverYes, setHoverYes]   = useState(false);
   const [hoverNo, setHoverNo]     = useState(false);
@@ -67,20 +68,18 @@ function MarketPanel({
     setBusy(true);
     setMsg(null);
     try {
-      const res  = await fetch("/api/orders", {
+      const res  = await fetch("/api/bet", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
           user_id:       userId,
           market_id:     market.market_id,
-          side:          "buy",
           contract_type: side,
-          order_type:    "market",
           quantity:      qty,
         }),
       });
       const data = await res.json();
-      setMsg({ ok: res.ok, text: res.ok ? "Order placed!" : (data.error ?? "Error placing order.") });
+      setMsg({ ok: res.ok, text: res.ok ? `Filled! ${qty} ${side.toUpperCase()} at ${Math.round((data.price ?? 0.5) * 100)}¢` : (data.error ?? "Error placing order.") });
     } catch {
       setMsg({ ok: false, text: "Network error." });
     } finally {
@@ -184,8 +183,9 @@ function MarketPanel({
                     <input
                       type="number"
                       min={1}
-                      value={qty}
-                      onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      value={qtyStr}
+                      onChange={e => setQtyStr(e.target.value)}
+                      onBlur={() => setQtyStr(String(Math.max(1, parseInt(qtyStr) || 1)))}
                       style={{ width: "60px", padding: "4px 6px", border: "1px solid #d0d7de", borderRadius: "4px", fontSize: "12px", textAlign: "center" }}
                     />
                   </div>
@@ -193,16 +193,22 @@ function MarketPanel({
                   {/* Payout summary + Execute — only when a side is selected */}
                   {side && (
                     <>
-                      <div style={{ background: "#f6f8fa", borderRadius: "5px", padding: "8px 10px", marginBottom: "8px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76", marginBottom: "4px" }}>
-                          <span>Cost</span>
-                          <strong style={{ color: "#1f2328" }}>${(qty * 0.50).toFixed(2)}</strong>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76" }}>
-                          <span>Payout if correct</span>
-                          <strong style={{ color: side === "yes" ? "#1a7f37" : "#cf222e" }}>${(qty * 1.00).toFixed(2)}</strong>
-                        </div>
-                      </div>
+                      {(() => {
+                        const betProb = market.model_prob ?? 0.5;
+                        const betPrice = side === "yes" ? betProb : 1 - betProb;
+                        return (
+                          <div style={{ background: "#f6f8fa", borderRadius: "5px", padding: "8px 10px", marginBottom: "8px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76", marginBottom: "4px" }}>
+                              <span>Cost</span>
+                              <strong style={{ color: "#1f2328" }}>${(betPrice * qty).toFixed(2)}</strong>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76" }}>
+                              <span>Payout if correct</span>
+                              <strong style={{ color: side === "yes" ? "#1a7f37" : "#cf222e" }}>${qty.toFixed(2)}</strong>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <button
                         onClick={() => placeOrder(side)}
                         disabled={busy}

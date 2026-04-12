@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 // POST /api/sell
 // Sell contracts at current model_prob price — instant fill, no matching engine.
 // Body: { user_id, market_id, contract_type, quantity }
 
 export async function POST(req: NextRequest) {
-  const { user_id, market_id, contract_type, quantity } = await req.json();
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const user_id = session.user_id;
 
-  if (!user_id || !market_id || !contract_type || !quantity) {
+  const { market_id, contract_type, quantity } = await req.json();
+
+  if (!market_id || !contract_type || !quantity) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
   if (!["yes", "no"].includes(contract_type)) {
@@ -20,6 +25,11 @@ export async function POST(req: NextRequest) {
 
   const client = await pool.connect();
   try {
+    // Migrations — uses same ALTER TABLE pattern as other routes (no new tables)
+    await client.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_qty    INT     DEFAULT 0`);
+    await client.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_cost   NUMERIC DEFAULT 0`);
+    await client.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_payout NUMERIC DEFAULT 0`);
+
     await client.query("BEGIN");
 
     const mktRes = await client.query(
@@ -41,10 +51,10 @@ export async function POST(req: NextRequest) {
 
     // Validate position
     const posRes = await client.query(
-      "SELECT yes_qty, no_qty FROM positions WHERE user_id = $1 AND market_id = $2",
+      "SELECT yes_qty, no_qty, cost FROM positions WHERE user_id = $1 AND market_id = $2",
       [user_id, market_id]
     );
-    const pos = posRes.rows[0] ?? { yes_qty: 0, no_qty: 0 };
+    const pos = posRes.rows[0] ?? { yes_qty: 0, no_qty: 0, cost: 0 };
     const held = contract_type === "yes" ? Number(pos.yes_qty) : Number(pos.no_qty);
     if (held < quantity) {
       await client.query("ROLLBACK");
@@ -54,11 +64,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Decrement position
+    // Decrement position, reduce cost proportionally, accumulate sell totals
     const col = contract_type === "yes" ? "yes_qty" : "no_qty";
+    const totalHeld = Number(pos.yes_qty) + Number(pos.no_qty);
+    const costFraction = totalHeld > 0 ? quantity / totalHeld : 0;
+    const costBasis = Number(pos.cost ?? 0) * costFraction;
     await client.query(
-      `UPDATE positions SET ${col} = ${col} - $1 WHERE user_id = $2 AND market_id = $3`,
-      [quantity, user_id, market_id]
+      `UPDATE positions
+       SET ${col}       = ${col} - $1,
+           cost         = GREATEST(0, cost - cost * $2),
+           sold_qty     = COALESCE(sold_qty, 0)    + $1,
+           sold_cost    = COALESCE(sold_cost, 0)   + $3,
+           sold_payout  = COALESCE(sold_payout, 0) + $4
+       WHERE user_id = $5 AND market_id = $6`,
+      [quantity, costFraction, costBasis, payout, user_id, market_id]
     );
 
     // Credit cash

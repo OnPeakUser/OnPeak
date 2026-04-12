@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getSession } from "@/lib/session";
 
 // DELETE /api/orders/[id]?user_id=xxx
 // Cancels a resting order owned by the user.
@@ -9,11 +10,14 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: orderId } = await params;
-  const userId  = req.nextUrl.searchParams.get("user_id");
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const userId = session.user_id;
 
-  if (!orderId || !userId) {
-    return NextResponse.json({ error: "Missing order_id or user_id." }, { status: 400 });
+  const { id: orderId } = await params;
+
+  if (!orderId) {
+    return NextResponse.json({ error: "Missing order_id." }, { status: 400 });
   }
 
   const client = await pool.connect();
