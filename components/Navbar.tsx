@@ -71,7 +71,7 @@ export default function Navbar() {
             <button
               onClick={handleSignOut}
               className="text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-              style={{ background: S.blue, color: "#ffffff" }}
+              style={{ background: S.blue, color: "#ffffff", cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#0757ba")}
               onMouseLeave={e => (e.currentTarget.style.background = S.blue)}
             >
