@@ -39,9 +39,9 @@ export default function Navbar() {
       style={{ background: S.surface, borderBottom: `1px solid ${S.border}` }}
       className="px-8 py-4 flex items-center justify-between"
     >
-      <Link href="/" className="font-bold text-lg tracking-tight" style={{ color: "#000000" }}>
+      <span className="font-bold text-[1.375rem] tracking-tight" style={{ color: "#000000" }}>
         OnPeak
-      </Link>
+      </span>
 
       <div className="flex gap-6 items-center">
         {[
