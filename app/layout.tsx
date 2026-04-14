@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 export const metadata: Metadata = {
   title: "OnPeak",
   description: "Predict energy prices. Trade the grid.",
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({
