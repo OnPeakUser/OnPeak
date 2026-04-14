@@ -49,7 +49,7 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="rounded p-6" style={{ background: S.surface, border: `1px solid ${S.border}` }}>
           <div className="mb-4">
             <label className="text-xs font-medium mb-1.5 block" style={{ color: S.muted }}>Username</label>
-            <input style={inputStyle} placeholder="satoshi" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
+            <input style={inputStyle} placeholder="satoshi" type="text" value={username} onChange={(e) => setUsername(e.target.value)} maxLength={16} required />
           </div>
           <div className="mb-4">
             <label className="text-xs font-medium mb-1.5 block" style={{ color: S.muted }}>Email</label>

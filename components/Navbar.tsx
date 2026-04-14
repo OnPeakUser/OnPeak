@@ -20,8 +20,8 @@ export default function Navbar() {
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
-    if (stored) setUsername(JSON.parse(stored).username);
-  }, []);
+    setUsername(stored ? JSON.parse(stored).username : null);
+  }, [pathname]);
 
   async function handleSignOut() {
     await fetch("/api/logout", { method: "POST" });
@@ -70,12 +70,12 @@ export default function Navbar() {
             <span className="text-sm" style={{ color: S.muted }}>{username}</span>
             <button
               onClick={handleSignOut}
-              className="text-sm transition-colors"
-              style={{ color: S.muted }}
-              onMouseEnter={e => (e.currentTarget.style.color = S.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = S.muted)}
+              className="text-sm font-semibold px-3 py-1.5 rounded transition-colors"
+              style={{ background: S.blue, color: "#ffffff" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#0757ba")}
+              onMouseLeave={e => (e.currentTarget.style.background = S.blue)}
             >
-              Sign out
+              Log out
             </button>
           </>
         ) : (

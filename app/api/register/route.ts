@@ -15,6 +15,12 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  if (username.length > 16) {
+    return NextResponse.json(
+      { error: "Username must be 16 characters or fewer." },
+      { status: 400 }
+    );
+  }
 
   try {
     // --- Check if email is already taken ---
