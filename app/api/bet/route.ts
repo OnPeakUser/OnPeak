@@ -27,8 +27,12 @@ export async function POST(req: NextRequest) {
 
   const client = await pool.connect();
   try {
-    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS cost NUMERIC DEFAULT 0");
-    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS last_price NUMERIC");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS cost            NUMERIC DEFAULT 0");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS last_price      NUMERIC");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS yes_cost        NUMERIC DEFAULT 0");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS no_cost         NUMERIC DEFAULT 0");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS yes_last_price  NUMERIC");
+    await client.query("ALTER TABLE positions ADD COLUMN IF NOT EXISTS no_last_price   NUMERIC");
     await client.query("BEGIN");
 
     const userRes = await client.query(
@@ -71,18 +75,26 @@ export async function POST(req: NextRequest) {
       [cost, user_id]
     );
 
-    const col = contract_type === "yes" ? "yes_qty" : "no_qty";
+    const col      = contract_type === "yes" ? "yes_qty"        : "no_qty";
+    const costCol  = contract_type === "yes" ? "yes_cost"       : "no_cost";
+    const priceCol = contract_type === "yes" ? "yes_last_price" : "no_last_price";
     await client.query(
-      `INSERT INTO positions (user_id, market_id, yes_qty, no_qty, cost, last_price)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO positions (user_id, market_id, yes_qty, no_qty, yes_cost, no_cost, yes_last_price, no_last_price, cost, last_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (user_id, market_id) DO UPDATE
-       SET ${col}     = positions.${col} + EXCLUDED.${col},
-           cost       = positions.cost   + EXCLUDED.cost,
-           last_price = EXCLUDED.last_price`,
+       SET ${col}      = positions.${col}      + EXCLUDED.${col},
+           ${costCol}  = positions.${costCol}  + EXCLUDED.${costCol},
+           ${priceCol} = EXCLUDED.${priceCol},
+           cost        = positions.cost        + EXCLUDED.cost,
+           last_price  = EXCLUDED.last_price`,
       [
         user_id, market_id,
         contract_type === "yes" ? quantity : 0,
         contract_type === "no"  ? quantity : 0,
+        contract_type === "yes" ? cost : 0,
+        contract_type === "no"  ? cost : 0,
+        contract_type === "yes" ? price : null,
+        contract_type === "no"  ? price : null,
         cost,
         price,
       ]

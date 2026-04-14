@@ -16,6 +16,10 @@ type Position = {
   yes_qty: number;
   no_qty: number;
   model_prob: number | null;
+  yes_cost: number | null;
+  no_cost: number | null;
+  yes_last_price: number | null;
+  no_last_price: number | null;
   cost: number | null;
   last_price: number | null;
 };
@@ -229,7 +233,6 @@ export default function Portfolio() {
               <tbody>
                 {positions.flatMap((p) => {
                   const prob = p.model_prob != null ? Number(p.model_prob) : null;
-                  const totalCost = p.cost != null && Number(p.cost) > 0 ? Number(p.cost) : null;
                   const rows = [];
 
                   rows.push(
@@ -246,10 +249,12 @@ export default function Portfolio() {
                   function posRow(ct: "yes" | "no") {
                     const qty           = ct === "yes" ? Number(p.yes_qty) : Number(p.no_qty);
                     const currentPrice  = prob != null ? (ct === "yes" ? prob : 1 - prob) : null;
-                    const lastPrice     = p.last_price != null ? Number(p.last_price) : null;
+                    const rawLastPrice  = ct === "yes" ? p.yes_last_price : p.no_last_price;
+                    const lastPrice     = rawLastPrice != null ? Number(rawLastPrice) : null;
                     const marketValue   = currentPrice != null ? currentPrice * qty : null;
                     const payoutIfRight = qty;
-                    const effectiveCost = totalCost != null ? totalCost
+                    const sideCost      = ct === "yes" ? p.yes_cost : p.no_cost;
+                    const effectiveCost = sideCost != null && Number(sideCost) > 0 ? Number(sideCost)
                                        : (currentPrice != null ? currentPrice * qty : null);
                     const avgPrice      = effectiveCost != null && qty > 0 ? effectiveCost / qty : null;
                     const pnl           = effectiveCost != null && marketValue != null ? marketValue - effectiveCost : null;

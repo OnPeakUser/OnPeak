@@ -51,10 +51,10 @@ export async function POST(req: NextRequest) {
 
     // Validate position
     const posRes = await client.query(
-      "SELECT yes_qty, no_qty, cost FROM positions WHERE user_id = $1 AND market_id = $2",
+      "SELECT yes_qty, no_qty, cost, yes_cost, no_cost FROM positions WHERE user_id = $1 AND market_id = $2",
       [user_id, market_id]
     );
-    const pos = posRes.rows[0] ?? { yes_qty: 0, no_qty: 0, cost: 0 };
+    const pos = posRes.rows[0] ?? { yes_qty: 0, no_qty: 0, cost: 0, yes_cost: 0, no_cost: 0 };
     const held = contract_type === "yes" ? Number(pos.yes_qty) : Number(pos.no_qty);
     if (held < quantity) {
       await client.query("ROLLBACK");
@@ -64,20 +64,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Decrement position, reduce cost proportionally, accumulate sell totals
-    const col = contract_type === "yes" ? "yes_qty" : "no_qty";
-    const totalHeld = Number(pos.yes_qty) + Number(pos.no_qty);
-    const costFraction = totalHeld > 0 ? quantity / totalHeld : 0;
-    const costBasis = Number(pos.cost ?? 0) * costFraction;
+    // Decrement position, reduce per-side cost proportionally, accumulate sell totals
+    const col        = contract_type === "yes" ? "yes_qty"  : "no_qty";
+    const costCol    = contract_type === "yes" ? "yes_cost" : "no_cost";
+    const sideCost   = Number(contract_type === "yes" ? (pos.yes_cost ?? 0) : (pos.no_cost ?? 0));
+    const costFraction = held > 0 ? quantity / held : 0;
+    const costBasis  = sideCost * costFraction;
     await client.query(
       `UPDATE positions
        SET ${col}       = ${col} - $1,
-           cost         = GREATEST(0, cost - cost * $2),
+           ${costCol}   = GREATEST(0, ${costCol} - $2),
+           cost         = GREATEST(0, cost - $2),
            sold_qty     = COALESCE(sold_qty, 0)    + $1,
-           sold_cost    = COALESCE(sold_cost, 0)   + $3,
-           sold_payout  = COALESCE(sold_payout, 0) + $4
-       WHERE user_id = $5 AND market_id = $6`,
-      [quantity, costFraction, costBasis, payout, user_id, market_id]
+           sold_cost    = COALESCE(sold_cost, 0)   + $2,
+           sold_payout  = COALESCE(sold_payout, 0) + $3
+       WHERE user_id = $4 AND market_id = $5`,
+      [quantity, costBasis, payout, user_id, market_id]
     );
 
     // Credit cash

@@ -12,11 +12,15 @@ export async function GET(req: NextRequest) {
 
   try {
     // One-time migrations
-    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS cost        NUMERIC DEFAULT 0`).catch(() => {});
-    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS last_price  NUMERIC`).catch(() => {});
-    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_qty    INT     DEFAULT 0`).catch(() => {});
-    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_cost   NUMERIC DEFAULT 0`).catch(() => {});
-    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_payout NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS cost            NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS last_price      NUMERIC`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS yes_cost        NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS no_cost         NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS yes_last_price  NUMERIC`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS no_last_price   NUMERIC`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_qty        INT     DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_cost       NUMERIC DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_payout     NUMERIC DEFAULT 0`).catch(() => {});
 
     // Fresh cash balance (localStorage goes stale after trades)
     const profileResult = await pool.query(
@@ -30,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     // Open positions (markets not yet settled)
     const positionsResult = await pool.query(
-      `SELECT p.yes_qty, p.no_qty, p.cost, p.last_price, m.market_id, m.name, m.threshold, m.direction, m.status, m.model_prob
+      `SELECT p.yes_qty, p.no_qty, p.cost, p.last_price, p.yes_cost, p.no_cost, p.yes_last_price, p.no_last_price, m.market_id, m.name, m.threshold, m.direction, m.status, m.model_prob
        FROM positions p
        JOIN markets m ON m.market_id = p.market_id
        WHERE p.user_id = $1
