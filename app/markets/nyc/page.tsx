@@ -130,8 +130,9 @@ export default function NYCMarket() {
         </div>
       ) : (
         <div className="rounded p-5 mb-5 text-center" style={cardStyle}>
-          <p className="text-sm mb-3" style={{ color: S.muted }}>Create an account to place orders.</p>
-          <a href="/register" className="inline-block px-4 py-2 rounded font-bold text-sm" style={{ background: S.blue, color: "#ffffff" }}>Register</a>
+          <p className="text-sm mb-3" style={{ color: S.muted }}>Sign in to place orders.</p>
+          <a href="/login" className="inline-block px-4 py-2 rounded font-bold text-sm" style={{ background: S.blue, color: "#ffffff" }}>Sign in</a>
+          <p className="text-xs mt-2" style={{ color: S.muted }}>No account? <a href="/register" style={{ color: S.blue }}>Register</a></p>
         </div>
       )}
 

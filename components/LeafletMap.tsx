@@ -219,12 +219,14 @@ function MarketPanel({
                   ) : (
                     <>
                       <a
-                        href="/register"
+                        href="/login"
                         style={{ display: "block", textAlign: "center", padding: "9px 0", background: "#0969da", color: "#fff", borderRadius: "5px", fontWeight: 700, fontSize: "13px", textDecoration: "none" }}
                       >
-                        Register
+                        Sign in to trade
                       </a>
-                      <p style={{ textAlign: "center", fontSize: "11px", color: "#656d76", margin: "6px 0 0" }}>Register to trade</p>
+                      <p style={{ textAlign: "center", fontSize: "11px", color: "#656d76", margin: "6px 0 0" }}>
+                        No account? <a href="/register" style={{ color: "#0969da" }}>Register</a>
+                      </p>
                     </>
                   )}
                 </>

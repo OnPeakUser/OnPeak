@@ -584,12 +584,14 @@ export default function MarketPage() {
                     ) : (
                       <>
                         <a
-                          href="/register"
+                          href="/login"
                           style={{ display: "block", textAlign: "center", padding: "12px 0", background: S.blue, color: "#fff", borderRadius: "6px", fontWeight: 700, fontSize: "14px", textDecoration: "none" }}
                         >
-                          Register
+                          Sign in to trade
                         </a>
-                        <p style={{ textAlign: "center", fontSize: "12px", color: S.muted, margin: "8px 0 0" }}>Register to trade</p>
+                        <p style={{ textAlign: "center", fontSize: "12px", color: S.muted, margin: "8px 0 0" }}>
+                          No account? <a href="/register" style={{ color: S.blue }}>Register</a>
+                        </p>
                       </>
                     )}
                   </>
