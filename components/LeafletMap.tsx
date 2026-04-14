@@ -14,7 +14,7 @@ const ZONE_NODE: Record<string, string> = {
 
 function FitBounds() {
   const map = useMap();
-  useEffect(() => { map.setView([41, -90], 4); }, [map]);
+  useEffect(() => { map.setView([44, -90], 4); }, [map]);
   return null;
 }
 
@@ -261,7 +261,7 @@ export default function LeafletMap({ zones, priceColor, markets, userId }: Props
 
   return (
     <MapContainer
-      center={[41, -90]}
+      center={[44, -90]}
       zoom={4}
       style={{ height: "100%", width: "100%" }}
       scrollWheelZoom
