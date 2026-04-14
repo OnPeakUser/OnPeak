@@ -188,12 +188,29 @@ export async function GET(req: NextRequest) {
   const yyyymmdd = date.replace(/-/g, "");
 
   try {
-    // Fetch all 3 sources + DB snapshots in parallel
-    const [nyisoR, caisoR, isoneR, dbR] = await Promise.allSettled([
+    // Serve from DB snapshots first — these are kept current by the 5-min cron.
+    // Only fall back to external APIs if the DB has no data for this date.
+    const dbRows = await getSnapshotsForDay(date);
+
+    type MergedRow = { node_id: string; name: string; price: number; recorded_at: string };
+
+    if (dbRows.length > 0) {
+      const rows: MergedRow[] = dbRows.map(r => ({
+        node_id:     r.node_id,
+        name:        r.name,
+        price:       Number(r.price),
+        recorded_at: String(r.recorded_at),
+      }));
+      const res = NextResponse.json({ rows });
+      res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
+      return res;
+    }
+
+    // Fallback: fetch from external APIs (first load before cron has run)
+    const [nyisoR, caisoR, isoneR] = await Promise.allSettled([
       backfillNYISO(yyyymmdd),
       backfillCAISO(date),
       backfillISONE(yyyymmdd),
-      getSnapshotsForDay(date),
     ]);
 
     const apiRows = [
@@ -202,36 +219,15 @@ export async function GET(req: NextRequest) {
       ...(isoneR.status === "fulfilled" ? isoneR.value : []),
     ];
 
-    if (nyisoR.status === "rejected") console.error("[history] NYISO fetch failed:", nyisoR.reason);
-    if (caisoR.status === "rejected") console.error("[history] CAISO fetch failed:", caisoR.reason);
-    if (isoneR.status === "rejected") console.error("[history] ISONE fetch failed:", isoneR.reason);
-    if (nyisoR.status === "fulfilled" && nyisoR.value.length === 0) console.error("[history] NYISO returned 0 rows");
-    if (isoneR.status === "fulfilled" && isoneR.value.length === 0) console.error("[history] ISONE returned 0 rows");
-
-    // Persist new API rows to DB
     if (apiRows.length > 0) saveSnapshots(apiRows).catch(() => {});
 
-    // Merge API rows + DB snapshot rows, preferring API data when timestamps overlap.
-    // API data is added first; DB rows for the same (node_id, 5-min bucket) are skipped.
-    // This means DB snapshots fill genuine gaps in the API response rather than being
-    // excluded wholesale whenever the API returns any data at all.
-    const dbRows = dbR.status === "fulfilled" ? dbR.value : [];
-
-    type MergedRow = { node_id: string; name: string; price: number; recorded_at: string };
     const seen = new Set<string>();
     const rows: MergedRow[] = [];
-
     for (const r of apiRows) {
       const key = `${r.id}:${utcBucket(r.timestamp)}`;
       if (seen.has(key)) continue;
       seen.add(key);
       rows.push({ node_id: r.id, name: r.name, price: r.price, recorded_at: r.timestamp });
-    }
-    for (const r of dbRows) {
-      const key = `${r.node_id}:${utcBucket(String(r.recorded_at))}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push({ node_id: r.node_id, name: r.name, price: Number(r.price), recorded_at: String(r.recorded_at) });
     }
 
     return NextResponse.json({ rows });

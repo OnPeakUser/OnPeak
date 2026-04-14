@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 
 const S = {
   bg: "#f6f8fa",
@@ -38,9 +39,9 @@ export default function Navbar() {
       style={{ background: S.surface, borderBottom: `1px solid ${S.border}` }}
       className="px-8 py-4 flex items-center justify-between"
     >
-      <a href="/" className="font-bold text-lg tracking-tight" style={{ color: "#000000" }}>
+      <Link href="/" className="font-bold text-lg tracking-tight" style={{ color: "#000000" }}>
         OnPeak
-      </a>
+      </Link>
 
       <div className="flex gap-6 items-center">
         {[
@@ -51,14 +52,14 @@ export default function Navbar() {
         ].map(({ href, label, match }) => {
           const active = isActive(match ?? href);
           return (
-            <a
+            <Link
               key={href}
               href={href}
               className="text-sm transition-colors duration-150"
               style={{ color: active ? S.blue : S.muted, fontWeight: active ? 600 : 400 }}
             >
               {label}
-            </a>
+            </Link>
           );
         })}
 
@@ -79,10 +80,10 @@ export default function Navbar() {
           </>
         ) : (
           <>
-            <a href="/login" className="text-sm" style={{ color: isActive("/login") ? S.blue : S.muted }}>
+            <Link href="/login" className="text-sm" style={{ color: isActive("/login") ? S.blue : S.muted }}>
               Sign in
-            </a>
-            <a
+            </Link>
+            <Link
               href="/register"
               className="text-sm font-semibold px-3 py-1.5 rounded transition-colors"
               style={{ background: S.blue, color: "#ffffff" }}
@@ -90,7 +91,7 @@ export default function Navbar() {
               onMouseLeave={e => (e.currentTarget.style.background = S.blue)}
             >
               Register
-            </a>
+            </Link>
           </>
         )}
       </div>

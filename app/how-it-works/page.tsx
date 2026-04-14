@@ -214,7 +214,7 @@ export default function HowItWorksPage() {
               <a href="mailto:onpeakmarket@protonmail.com" style={{ color: S.blue }}>
                 onpeakmarket@protonmail.com
               </a>
-              . We read everything.
+              . We read and respond to everything.
             </p>
           </div>
         </section>

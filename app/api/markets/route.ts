@@ -77,7 +77,9 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json(markets);
+    const res = NextResponse.json(markets);
+    res.headers.set("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
+    return res;
   } catch (err) {
     console.error("GET /api/markets error:", err);
     return NextResponse.json({ error: "Server error." }, { status: 500 });
