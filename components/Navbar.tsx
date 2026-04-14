@@ -36,17 +36,18 @@ export default function Navbar() {
   return (
     <nav
       style={{ background: S.surface, borderBottom: `1px solid ${S.border}` }}
-      className="px-8 py-3 flex items-center justify-between"
+      className="px-8 py-4 flex items-center justify-between"
     >
-      <a href="/" className="font-bold text-base tracking-tight" style={{ color: "#000000" }}>
+      <a href="/" className="font-bold text-lg tracking-tight" style={{ color: "#000000" }}>
         OnPeak
       </a>
 
       <div className="flex gap-6 items-center">
         {[
-          { href: "/markets",     label: "Markets", match: "/markets" },
-          { href: "/map",         label: "Live Map" },
-          { href: "/portfolio",   label: "Portfolio" },
+          { href: "/how-it-works",  label: "How It Works" },
+          { href: "/markets",       label: "Markets", match: "/markets" },
+          { href: "/map",           label: "Live Map" },
+          { href: "/portfolio",     label: "Portfolio" },
         ].map(({ href, label, match }) => {
           const active = isActive(match ?? href);
           return (
@@ -61,7 +62,7 @@ export default function Navbar() {
           );
         })}
 
-        <div style={{ width: "1px", height: "16px", background: S.border }} />
+        <div style={{ width: "1px", height: "18px", background: S.border }} />
 
         {username ? (
           <>

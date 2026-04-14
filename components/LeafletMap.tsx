@@ -155,84 +155,86 @@ function MarketPanel({
                 Will the average price in <strong>{zone.name}</strong> be Higher than <strong>${market.threshold.toFixed(2)}</strong>?
               </div>
 
-              {userId ? (
+              {/* YES / NO selector — always visible */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+                <button
+                  onClick={() => { setSide(side === "yes" ? null : "yes"); setMsg(null); }}
+                  onMouseEnter={() => setHoverYes(true)}
+                  onMouseLeave={() => setHoverYes(false)}
+                  style={{ flex: 1, padding: "10px 0", background: "#1a7f37", color: "#fff", border: `2px solid ${hoverYes ? "#0d4720" : side === "yes" ? "#0d4720" : "#1a7f37"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "yes" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
+                >
+                  YES · {yesCents}¢
+                </button>
+                <button
+                  onClick={() => { setSide(side === "no" ? null : "no"); setMsg(null); }}
+                  onMouseEnter={() => setHoverNo(true)}
+                  onMouseLeave={() => setHoverNo(false)}
+                  style={{ flex: 1, padding: "10px 0", background: "#cf222e", color: "#fff", border: `2px solid ${hoverNo ? "#7a0a0f" : side === "no" ? "#7a0a0f" : "#cf222e"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "no" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
+                >
+                  NO · {noCents}¢
+                </button>
+              </div>
+
+              {/* Contracts input — always visible */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                <label style={{ fontSize: "12px", color: "#656d76" }}>Contracts</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={qtyStr}
+                  onChange={e => setQtyStr(e.target.value)}
+                  onBlur={() => setQtyStr(String(Math.max(1, parseInt(qtyStr) || 1)))}
+                  style={{ width: "60px", padding: "4px 6px", border: "1px solid #d0d7de", borderRadius: "4px", fontSize: "12px", textAlign: "center" }}
+                />
+              </div>
+
+              {/* Payout summary — always visible when a side is selected */}
+              {side && (
                 <>
-                  {/* YES / NO selector */}
-                  <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-                    <button
-                      onClick={() => { setSide(side === "yes" ? null : "yes"); setMsg(null); }}
-                      onMouseEnter={() => setHoverYes(true)}
-                      onMouseLeave={() => setHoverYes(false)}
-                      style={{ flex: 1, padding: "10px 0", background: "#1a7f37", color: "#fff", border: `2px solid ${hoverYes ? "#0d4720" : side === "yes" ? "#0d4720" : "#1a7f37"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "yes" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
-                    >
-                      YES · {yesCents}¢
-                    </button>
-                    <button
-                      onClick={() => { setSide(side === "no" ? null : "no"); setMsg(null); }}
-                      onMouseEnter={() => setHoverNo(true)}
-                      onMouseLeave={() => setHoverNo(false)}
-                      style={{ flex: 1, padding: "10px 0", background: "#cf222e", color: "#fff", border: `2px solid ${hoverNo ? "#7a0a0f" : side === "no" ? "#7a0a0f" : "#cf222e"}`, borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: side && side !== "no" ? 0.55 : 1, transition: "border-color 0.1s, opacity 0.1s" }}
-                    >
-                      NO · {noCents}¢
-                    </button>
-                  </div>
+                  {(() => {
+                    const betProb = market.model_prob ?? 0.5;
+                    const betPrice = side === "yes" ? betProb : 1 - betProb;
+                    return (
+                      <div style={{ background: "#f6f8fa", borderRadius: "5px", padding: "8px 10px", marginBottom: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76", marginBottom: "4px" }}>
+                          <span>Cost</span>
+                          <strong style={{ color: "#1f2328" }}>${(betPrice * qty).toFixed(2)}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76" }}>
+                          <span>Payout if correct</span>
+                          <strong style={{ color: side === "yes" ? "#1a7f37" : "#cf222e" }}>${qty.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                  {/* Contracts input */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                    <label style={{ fontSize: "12px", color: "#656d76" }}>Contracts</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={qtyStr}
-                      onChange={e => setQtyStr(e.target.value)}
-                      onBlur={() => setQtyStr(String(Math.max(1, parseInt(qtyStr) || 1)))}
-                      style={{ width: "60px", padding: "4px 6px", border: "1px solid #d0d7de", borderRadius: "4px", fontSize: "12px", textAlign: "center" }}
-                    />
-                  </div>
-
-                  {/* Payout summary + Execute — only when a side is selected */}
-                  {side && (
+                  {userId ? (
+                    <button
+                      onClick={() => placeOrder(side)}
+                      disabled={busy}
+                      style={{ width: "100%", padding: "9px 0", background: side === "yes" ? "#1a7f37" : "#cf222e", color: "#fff", border: "none", borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}
+                    >
+                      {busy ? "Placing…" : `Execute Order · ${side.toUpperCase()}`}
+                    </button>
+                  ) : (
                     <>
-                      {(() => {
-                        const betProb = market.model_prob ?? 0.5;
-                        const betPrice = side === "yes" ? betProb : 1 - betProb;
-                        return (
-                          <div style={{ background: "#f6f8fa", borderRadius: "5px", padding: "8px 10px", marginBottom: "8px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76", marginBottom: "4px" }}>
-                              <span>Cost</span>
-                              <strong style={{ color: "#1f2328" }}>${(betPrice * qty).toFixed(2)}</strong>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#656d76" }}>
-                              <span>Payout if correct</span>
-                              <strong style={{ color: side === "yes" ? "#1a7f37" : "#cf222e" }}>${qty.toFixed(2)}</strong>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      <button
-                        onClick={() => placeOrder(side)}
-                        disabled={busy}
-                        style={{ width: "100%", padding: "9px 0", background: side === "yes" ? "#1a7f37" : "#cf222e", color: "#fff", border: "none", borderRadius: "5px", fontWeight: 700, fontSize: "13px", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}
+                      <a
+                        href="/register"
+                        style={{ display: "block", textAlign: "center", padding: "9px 0", background: "#0969da", color: "#fff", borderRadius: "5px", fontWeight: 700, fontSize: "13px", textDecoration: "none" }}
                       >
-                        {busy ? "Placing…" : `Execute Order · ${side.toUpperCase()}`}
-                      </button>
+                        Register
+                      </a>
+                      <p style={{ textAlign: "center", fontSize: "11px", color: "#656d76", margin: "6px 0 0" }}>Register to trade</p>
                     </>
                   )}
-
-                  {/* Order result message */}
-                  {msg && (
-                    <div style={{ marginTop: "7px", padding: "6px 8px", borderRadius: "4px", fontSize: "11px", textAlign: "center", background: msg.ok ? "#dafbe1" : "#ffebe9", color: msg.ok ? "#1a7f37" : "#cf222e" }}>
-                      {msg.text}
-                    </div>
-                  )}
                 </>
-              ) : (
-                <a
-                  href="/login"
-                  style={{ display: "block", textAlign: "center", padding: "8px 0", background: "#f6f8fa", border: "1px solid #d0d7de", borderRadius: "5px", fontSize: "12px", color: "#0969da", textDecoration: "none" }}
-                >
-                  Sign in to trade
-                </a>
+              )}
+
+              {/* Order result message */}
+              {msg && (
+                <div style={{ marginTop: "7px", padding: "6px 8px", borderRadius: "4px", fontSize: "11px", textAlign: "center", background: msg.ok ? "#dafbe1" : "#ffebe9", color: msg.ok ? "#1a7f37" : "#cf222e" }}>
+                  {msg.text}
+                </div>
               )}
             </div>
           )}

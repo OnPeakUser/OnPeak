@@ -509,9 +509,9 @@ export default function MarketPage() {
             <p className="text-xs mt-1" style={{ color: S.faint }}>{!yesWins ? "settled NO" : ""}</p>
           </div>
         </div>
-      ) : user ? (
+      ) : (
         <div className="mb-5">
-          {/* BUY YES / BUY NO */}
+          {/* BUY YES / BUY NO — always visible */}
           <div className="flex gap-3 mb-4">
             <button
               onClick={() => { setSide(side === "yes" ? null : "yes"); setError(null); setSuccess(null); }}
@@ -532,7 +532,7 @@ export default function MarketPage() {
           </div>
 
           {/* Price history chart for selected side */}
-          {side && (
+          {side && user && (
             <div className="rounded p-4 mb-4" style={{ background: S.surface, border: `1px solid ${S.border}` }}>
               <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: S.faint }}>
                 {side.toUpperCase()} Price History
@@ -552,7 +552,7 @@ export default function MarketPage() {
             />
           </div>
 
-          {/* Payout + Execute */}
+          {/* Payout + Execute or Register */}
           {side && (
             <>
               {(() => {
@@ -571,15 +571,27 @@ export default function MarketPage() {
                         <strong style={{ color: side === "yes" ? S.green : S.red }}>${qty.toFixed(2)}</strong>
                       </div>
                     </div>
-                    <button
-                      onClick={handleSubmit}
-                      disabled={submitting}
-                      onMouseEnter={() => setHoverExec(true)}
-                      onMouseLeave={() => setHoverExec(false)}
-                      style={{ width: "100%", padding: "12px 0", background: side === "yes" ? S.green : S.red, color: "#fff", border: `2px solid ${hoverExec ? (side === "yes" ? "#0d4720" : "#7a0a0f") : (side === "yes" ? S.green : S.red)}`, borderRadius: "6px", fontWeight: 700, fontSize: "14px", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1, transition: "border-color 0.1s" }}
-                    >
-                      {submitting ? "Filling…" : `Buy ${qty} ${side.toUpperCase()} · $${betCost.toFixed(2)}`}
-                    </button>
+                    {user ? (
+                      <button
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        onMouseEnter={() => setHoverExec(true)}
+                        onMouseLeave={() => setHoverExec(false)}
+                        style={{ width: "100%", padding: "12px 0", background: side === "yes" ? S.green : S.red, color: "#fff", border: `2px solid ${hoverExec ? (side === "yes" ? "#0d4720" : "#7a0a0f") : (side === "yes" ? S.green : S.red)}`, borderRadius: "6px", fontWeight: 700, fontSize: "14px", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1, transition: "border-color 0.1s" }}
+                      >
+                        {submitting ? "Filling…" : `Buy ${qty} ${side.toUpperCase()} · $${betCost.toFixed(2)}`}
+                      </button>
+                    ) : (
+                      <>
+                        <a
+                          href="/register"
+                          style={{ display: "block", textAlign: "center", padding: "12px 0", background: S.blue, color: "#fff", borderRadius: "6px", fontWeight: 700, fontSize: "14px", textDecoration: "none" }}
+                        >
+                          Register
+                        </a>
+                        <p style={{ textAlign: "center", fontSize: "12px", color: S.muted, margin: "8px 0 0" }}>Register to trade</p>
+                      </>
+                    )}
                   </>
                 );
               })()}
@@ -588,11 +600,6 @@ export default function MarketPage() {
 
           {error   && <p style={{ marginTop: "8px", fontSize: "12px", color: S.red }}>{error}</p>}
           {success && <p style={{ marginTop: "8px", fontSize: "12px", color: S.green }}>{success}</p>}
-        </div>
-      ) : (
-        <div className="rounded p-5 mb-5 text-center" style={cardStyle}>
-          <p className="text-sm mb-3" style={{ color: S.muted }}>Sign in to place orders.</p>
-          <a href="/login" className="inline-block px-4 py-2 rounded font-bold text-sm" style={{ background: S.blue, color: "#000" }}>Sign In</a>
         </div>
       )}
 

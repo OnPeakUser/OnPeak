@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   const { username, email, password } = await req.json();
@@ -36,6 +39,14 @@ export async function POST(req: NextRequest) {
        VALUES (gen_random_uuid(), $1, $2, $3, 10000, NOW())`,
       [username, email, hashedPassword]
     );
+
+    await resend.emails.send({
+      from: "OnPeak <hello@onpeakmarket.com>",
+      replyTo: "onpeakmarket@protonmail.com",
+      to: email,
+      subject: "Welcome to OnPeak — we read every reply.",
+      text: `Thanks for signing up.\n\nWe read and respond to every email — reply with anything on your mind, whether it's feedback, questions, or features you'd want to see.\n\nOnPeak is building the first retail venue for power market trading. Traditional power trading requires millions of dollars in capital, access to big investment banks, and regulatory licensing — effectively closed off for anyone who's not rich or working at an energy trading firm. Our goal is to change that.\n\nThe product is early. Your feedback directly shapes where it goes.\n\nOnPeak`,
+    });
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (err) {
