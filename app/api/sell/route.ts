@@ -25,10 +25,22 @@ export async function POST(req: NextRequest) {
 
   const client = await pool.connect();
   try {
-    // Migrations — uses same ALTER TABLE pattern as other routes (no new tables)
     await client.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_qty    INT     DEFAULT 0`);
     await client.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_cost   NUMERIC DEFAULT 0`);
     await client.query(`ALTER TABLE positions ADD COLUMN IF NOT EXISTS sold_payout NUMERIC DEFAULT 0`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sell_transactions (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id       UUID NOT NULL,
+        market_id     UUID NOT NULL,
+        contract_type TEXT NOT NULL,
+        quantity      INT NOT NULL,
+        price         NUMERIC NOT NULL,
+        payout        NUMERIC NOT NULL,
+        cost_basis    NUMERIC NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
 
     await client.query("BEGIN");
 
@@ -80,6 +92,13 @@ export async function POST(req: NextRequest) {
            sold_payout  = COALESCE(sold_payout, 0) + $3
        WHERE user_id = $4 AND market_id = $5`,
       [quantity, costBasis, payout, user_id, market_id]
+    );
+
+    // Record individual sell transaction
+    await client.query(
+      `INSERT INTO sell_transactions (user_id, market_id, contract_type, quantity, price, payout, cost_basis)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [user_id, market_id, contract_type, quantity, price, payout, costBasis]
     );
 
     // Credit cash

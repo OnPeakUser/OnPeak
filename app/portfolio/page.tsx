@@ -24,14 +24,18 @@ type Position = {
   last_price: number | null;
 };
 
-type SoldPosition = {
+type SellTransaction = {
+  id: string;
   market_id: string;
   name: string;
   threshold: number;
   direction: string;
-  sold_qty: number;
-  total_cost: number;
-  total_payout: number;
+  contract_type: "yes" | "no";
+  quantity: number;
+  price: number;
+  payout: number;
+  cost_basis: number;
+  created_at: string;
 };
 
 type SettledPosition = {
@@ -70,12 +74,13 @@ export default function Portfolio() {
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [positions, setPositions]     = useState<Position[]>([]);
   const [settledPositions, setSettledPositions] = useState<SettledPosition[]>([]);
-  const [soldPositions, setSoldPositions]       = useState<SoldPosition[]>([]);
+  const [sellTransactions, setSellTransactions] = useState<SellTransaction[]>([]);
   const [selling, setSelling]         = useState<string | null>(null);
   const [sellError, setSellError]     = useState<string | null>(null);
   const [sellOpen, setSellOpen]       = useState<string | null>(null); // key of row with open sell panel
   const [sellQty, setSellQty]         = useState<Record<string, string>>({});
   const [tab, setTab]                 = useState<"positions" | "history">("positions");
+  const [historyFilter, setHistoryFilter] = useState<"all" | "sold-early" | "settled">("all");
   const [avgTip, setAvgTip]           = useState(false);
 
   function loadPortfolio(u: User) {
@@ -87,7 +92,7 @@ export default function Portfolio() {
         setCashBalance(data.cash_balance);
         setPositions(data.positions);
         setSettledPositions(data.settled_positions ?? []);
-        setSoldPositions(data.sold_positions ?? []);
+        setSellTransactions(data.sold_positions ?? []);
       })
       .catch(() => setReady(true));
   }
@@ -378,80 +383,105 @@ export default function Portfolio() {
       {/* ── History tab ───────────────────────────────────────────────── */}
       {tab === "history" && (
         <div className="rounded-b rounded-tr p-5" style={cardStyle}>
-          {settledPositions.length === 0 && soldPositions.length === 0 ? (
+
+          {/* Filter buttons */}
+          {(settledPositions.length > 0 || sellTransactions.length > 0) && (
+            <div className="flex gap-2 mb-4">
+              {(["all", "settled", "sold-early"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setHistoryFilter(f)}
+                  className="text-xs font-medium px-3 py-1 rounded-full"
+                  style={{
+                    background: historyFilter === f ? S.text : S.elevated,
+                    color:      historyFilter === f ? "#fff" : S.muted,
+                    border:     `1px solid ${historyFilter === f ? S.text : S.border}`,
+                    cursor: "pointer",
+                  }}
+                >
+                  {f === "all" ? "All" : f === "settled" ? "Settled" : "Sold Early"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {settledPositions.length === 0 && sellTransactions.length === 0 ? (
             <p className="text-sm" style={{ color: S.faint }}>No history yet.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ color: S.faint, borderBottom: `1px solid ${S.border}` }}>
                   <th className="text-left pb-2 text-xs font-medium">Market</th>
-                  <th className="text-left pb-2 text-xs font-medium">Outcome</th>
-                  <th className="text-right pb-2 text-xs font-medium">Total cost</th>
-                  <th className="text-right pb-2 text-xs font-medium">Total payout</th>
-                  <th className="text-right pb-2 text-xs font-medium">Total return</th>
+                  <th className="text-left pb-2 text-xs font-medium">Side</th>
+                  <th className="text-right pb-2 text-xs font-medium">Contracts</th>
+                  <th className="text-right pb-2 text-xs font-medium">Cost</th>
+                  <th className="text-right pb-2 text-xs font-medium">Payout</th>
+                  <th className="text-right pb-2 text-xs font-medium">Return</th>
                 </tr>
               </thead>
               <tbody>
-                {settledPositions.map((p) => {
-                  const finalQty  = p.yes_qty > 0 ? p.yes_qty : p.no_qty;
-                  const finalSide = p.yes_qty > 0 ? "YES" : "NO";
-                  const sideColor = p.yes_qty > 0 ? S.green : S.red;
-                  const hasCost   = p.cost > 0;
-                  const pnl       = p.payout - p.cost;
-                  const pct       = hasCost ? (pnl / p.cost) * 100 : null;
-                  const won       = pnl >= 0;
-                  return (
-                    <tr key={`settled-${p.market_id}`} style={{ borderBottom: `1px solid ${S.elevated}` }}>
-                      <td className="py-2.5">
-                        <p className="font-medium" style={{ color: S.text }}>{p.name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: S.faint }}>
-                          RT avg: ${p.settlement_value.toFixed(2)} · Line: ${p.threshold.toFixed(2)}/MWh
-                        </p>
-                      </td>
-                      <td className="py-2.5 font-semibold" style={{ color: sideColor }}>
-                        {finalQty} {finalSide} · {p.yes_wins === (finalSide === "YES") ? "Won" : "Lost"}
-                      </td>
-                      <td className="py-2.5 text-right" style={{ color: S.muted }}>
-                        {hasCost ? `$${p.cost.toFixed(2)}` : <span style={{ color: S.faint }}>—</span>}
-                      </td>
-                      <td className="py-2.5 text-right font-semibold" style={{ color: p.payout > 0 ? S.green : S.red }}>
-                        ${p.payout.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 text-right font-semibold" style={{ color: hasCost ? (won ? S.green : S.red) : S.faint }}>
-                        {hasCost
-                          ? `${won ? "+" : ""}$${pnl.toFixed(2)} (${won ? "+" : ""}${pct!.toFixed(0)}%)`
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
+                {historyFilter !== "sold-early" && settledPositions.map((p) => {
+                  const hasYes    = Number(p.yes_qty) > 0;
+                  const hasNo     = Number(p.no_qty)  > 0;
+                  const sides     = [...(hasYes ? ["yes" as const] : []), ...(hasNo ? ["no" as const] : [])];
+                  return sides.map((side) => {
+                    const qty       = side === "yes" ? Number(p.yes_qty) : Number(p.no_qty);
+                    const sideWins  = side === "yes" ? p.yes_wins : !p.yes_wins;
+                    const payout    = sideWins ? qty : 0;
+                    const hasCost   = p.cost > 0;
+                    const pnl       = payout - p.cost;
+                    const pct       = hasCost ? (pnl / p.cost) * 100 : null;
+                    const won       = pnl >= 0;
+                    return (
+                      <tr key={`settled-${p.market_id}-${side}`} style={{ borderBottom: `1px solid ${S.elevated}` }}>
+                        <td className="py-2.5">
+                          <p className="font-medium" style={{ color: S.text }}>{p.name}</p>
+                          <p className="text-xs mt-0.5" style={{ color: S.faint }}>
+                            RT avg: ${p.settlement_value.toFixed(2)} · Line: ${p.threshold.toFixed(2)}/MWh
+                          </p>
+                        </td>
+                        <td className="py-2.5 font-semibold" style={{ color: side === "yes" ? S.green : S.red }}>
+                          {side.toUpperCase()} · {sideWins ? "Won" : "Lost"}
+                        </td>
+                        <td className="py-2.5 text-right" style={{ color: S.muted }}>{qty}</td>
+                        <td className="py-2.5 text-right" style={{ color: S.muted }}>
+                          {hasCost ? `$${p.cost.toFixed(2)}` : <span style={{ color: S.faint }}>—</span>}
+                        </td>
+                        <td className="py-2.5 text-right font-semibold" style={{ color: payout > 0 ? S.green : S.red }}>
+                          ${payout.toFixed(2)}
+                        </td>
+                        <td className="py-2.5 text-right font-semibold" style={{ color: hasCost ? (won ? S.green : S.red) : S.faint }}>
+                          {hasCost ? `${won ? "+" : ""}$${pnl.toFixed(2)} (${won ? "+" : ""}${pct!.toFixed(0)}%)` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  });
                 })}
-                {soldPositions.map((p) => {
-                  const pnl = p.total_payout - p.total_cost;
-                  const hasCost = p.total_cost > 0;
-                  const pct = hasCost ? (pnl / p.total_cost) * 100 : null;
-                  const won = pnl >= 0;
+                {historyFilter !== "settled" && sellTransactions.map((t) => {
+                  const pnl     = t.payout - t.cost_basis;
+                  const hasCost = t.cost_basis > 0;
+                  const pct     = hasCost ? (pnl / t.cost_basis) * 100 : null;
+                  const won     = pnl >= 0;
                   return (
-                    <tr key={`sold-${p.market_id}`} style={{ borderBottom: `1px solid ${S.elevated}` }}>
+                    <tr key={`sell-${t.id}`} style={{ borderBottom: `1px solid ${S.elevated}` }}>
                       <td className="py-2.5">
-                        <p className="font-medium" style={{ color: S.text }}>{p.name}</p>
+                        <p className="font-medium" style={{ color: S.text }}>{t.name}</p>
                         <p className="text-xs mt-0.5" style={{ color: S.faint }}>
-                          Line: ${Number(p.threshold).toFixed(2)}/MWh
+                          Line: ${t.threshold.toFixed(2)}/MWh · {new Date(t.created_at).toLocaleDateString()}
                         </p>
                       </td>
-                      <td className="py-2.5">
-                        <p className="font-semibold" style={{ color: S.text }}>{p.sold_qty > 0 ? `${p.sold_qty} contracts` : "—"}</p>
-                        <p className="text-xs mt-0.5" style={{ color: S.faint }}>Sold early</p>
+                      <td className="py-2.5 font-semibold" style={{ color: t.contract_type === "yes" ? S.green : S.red }}>
+                        {t.contract_type.toUpperCase()}
                       </td>
+                      <td className="py-2.5 text-right" style={{ color: S.muted }}>{t.quantity}</td>
                       <td className="py-2.5 text-right" style={{ color: S.muted }}>
-                        {hasCost ? `$${p.total_cost.toFixed(2)}` : "—"}
+                        {hasCost ? `$${t.cost_basis.toFixed(2)}` : "—"}
                       </td>
-                      <td className="py-2.5 text-right font-semibold" style={{ color: p.total_payout > 0 ? S.green : S.faint }}>
-                        ${p.total_payout.toFixed(2)}
+                      <td className="py-2.5 text-right font-semibold" style={{ color: S.green }}>
+                        ${t.payout.toFixed(2)}
                       </td>
                       <td className="py-2.5 text-right font-semibold" style={{ color: hasCost ? (won ? S.green : S.red) : S.faint }}>
-                        {hasCost
-                          ? `${won ? "+" : ""}$${pnl.toFixed(2)} (${won ? "+" : ""}${pct!.toFixed(0)}%)`
-                          : "—"}
+                        {hasCost ? `${won ? "+" : ""}$${pnl.toFixed(2)} (${won ? "+" : ""}${pct!.toFixed(0)}%)` : "—"}
                       </td>
                     </tr>
                   );
