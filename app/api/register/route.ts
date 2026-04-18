@@ -2,10 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Resend } from "resend";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+function getIP(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0].trim()
+    ?? req.headers.get("x-real-ip")
+    ?? "unknown";
+}
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
+  // Rate limit by IP: 5 registrations per hour.
+  const ip = getIP(req);
+  const byIP = checkRateLimit(`register:ip:${ip}`, 5, 60 * 60 * 1000);
+  if (!byIP.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(byIP.retryAfter) } }
+    );
+  }
+
   const { username, email, password } = await req.json();
 
   // --- Validation ---
@@ -37,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     // --- Hash the password (never store plain text passwords) ---
     // bcrypt turns "mypassword" into a scrambled string like "$2b$10$..."
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // --- Insert the new user into the profile table ---
     await pool.query(

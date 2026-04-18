@@ -2,9 +2,38 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { signToken, COOKIE_NAME } from "@/lib/session";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+function getIP(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0].trim()
+    ?? req.headers.get("x-real-ip")
+    ?? "unknown";
+}
 
 export async function POST(req: NextRequest) {
   const { email, password } = await req.json();
+
+  // Rate limit by IP: 10 attempts per 15 minutes.
+  const ip = getIP(req);
+  const byIP = checkRateLimit(`login:ip:${ip}`, 10, 15 * 60 * 1000);
+  if (!byIP.allowed) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(byIP.retryAfter) } }
+    );
+  }
+
+  // Rate limit by target email: 10 attempts per 15 minutes.
+  // Prevents targeting a specific account from rotating IPs.
+  if (email) {
+    const byEmail = checkRateLimit(`login:email:${email}`, 10, 15 * 60 * 1000);
+    if (!byEmail.allowed) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(byEmail.retryAfter) } }
+      );
+    }
+  }
 
   // --- Validation ---
   if (!email || !password) {

@@ -468,16 +468,11 @@ export default function MapPage() {
 
               {/* Date/time label — own row so the pill can never overlap it */}
               <div
-                className="text-xs mt-1"
-                style={{
-                  color: S.muted,
-                  whiteSpace: "nowrap",
-                  fontVariantNumeric: "tabular-nums",
-                  textAlign: "right",
-                  paddingRight: "2px",
-                }}
+                className="text-xs mt-1 flex items-center justify-between"
+                style={{ fontVariantNumeric: "tabular-nums", paddingRight: "2px" }}
               >
-                {dateLabel}
+                <span style={{ color: S.faint }}>Drag bar ◈ to see historical prices</span>
+                <span style={{ color: S.muted, whiteSpace: "nowrap" }}>{dateLabel}</span>
               </div>
 
             </div>
